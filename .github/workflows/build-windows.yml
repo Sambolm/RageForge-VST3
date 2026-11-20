@@ -1,0 +1,28 @@
+name: Build RageForge Windows VST3
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  windows-vst3:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Visual Studio)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build release VST3
+        run: cmake --build build --config Release --target RageForge_VST3 --parallel 4
+      - name: Upload VST3 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: RageForge-Windows-VST3
+          path: build/RageForge_artefacts/Release/VST3/RageForge.vst3/
+          if-no-files-found: error
+  dsp-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run core DSP tests
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror tests/dsp_tests.cpp -o dsp_tests
+          ./dsp_tests
