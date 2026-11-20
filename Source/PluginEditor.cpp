@@ -1,6 +1,5 @@
 #include "PluginEditor.h"
 RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p){
- setSize(880,680);
  brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions(40.f,juce::Font::bold)));
  brand.setColour(juce::Label::textColourId,juce::Colour(0xffffb24f));addAndMakeVisible(brand);
  tagline.setText("BASS DESIGN ENGINE  /  ETERNATONES",juce::dontSendNotification);tagline.setFont(juce::Font(juce::FontOptions(13.f)));
@@ -10,7 +9,7 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  const char* names[]={"Impact Stab","Talking Monster","Cyber Metal","Void Reese","Riddim Chop","Liquid Growl","Laser Shot","Sub Engine"};
  for(int i=0;i<8;++i)preset.addItem(names[i],i+1);
  preset.setTextWhenNothingSelected("LOAD STARTING PATCH");
- preset.onChange=[this]{if(preset.getSelectedId()>0)processor.selectPreset(preset.getSelectedId()-1);};
+ preset.onChange=[this]{ if(preset.getSelectedId()>0){ processor.selectPreset(preset.getSelectedId()-1); subtitle.setText("LOADED: "+preset.getText()+"  |  Play a new note to audition.",juce::dontSendNotification); }};
  addAndMakeVisible(preset);
  const std::pair<const char*,const char*> controls[]{
   {"shape","WAVE MORPH"},{"fm","FM BITE"},{"detune","DETUNE"},{"sub","SUB LEVEL"},
@@ -33,6 +32,8 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
   knobs.push_back(std::move(k));
  }
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
+ // Size the editor only AFTER all controls exist, so resized() positions every knob.
+ setSize(880,680);
 }
 void RageForgeEditor::paint(juce::Graphics& g){
  g.fillAll(juce::Colour(0xff0d121a));
