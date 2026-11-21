@@ -14,7 +14,7 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  const std::pair<const char*,const char*> controls[]{
   {"shape","WAVE MORPH"},{"fm","FM BITE"},{"detune","DETUNE"},{"sub","SUB LEVEL"},
   {"cutoff","FILTER"},{"resonance","RESONANCE"},{"vowel","VOCAL"},{"movement","MOVEMENT"},
-  {"rate","LFO RATE"},{"drive","DRIVE"},{"attack","ATTACK"},{"decay","DECAY"},
+  {"drive","DRIVE"},{"attack","ATTACK"},{"decay","DECAY"},
   {"sustain","SUSTAIN"},{"release","RELEASE"},{"stereo","STEREO"},{"mix","EFFECT MIX"},
   {"glide","GLIDE"},{"level","OUTPUT"}
  };
@@ -31,6 +31,25 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
   k->attachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,id,k->slider);
   knobs.push_back(std::move(k));
  }
+ const juce::StringArray divisions{"1/32","1/16","1/8","1/4","1/2","1 BAR","2 BARS"};
+ const juce::StringArray shapes{"Sine","Triangle","Saw Up","Saw Down","Square"};
+ lfoDivision.addItemList(divisions,1);
+ lfoShape.addItemList(shapes,1);
+ lfoDivisionLabel.setText("LFO SYNC",juce::dontSendNotification);
+ lfoShapeLabel.setText("LFO SHAPE",juce::dontSendNotification);
+ for(auto* label:{&lfoDivisionLabel,&lfoShapeLabel}){
+   label->setJustificationType(juce::Justification::centred);
+   label->setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
+   label->setColour(juce::Label::textColourId,juce::Colours::lightgrey);
+   addAndMakeVisible(*label);
+ }
+ for(auto* box:{&lfoDivision,&lfoShape}){
+   box->setColour(juce::ComboBox::backgroundColourId,juce::Colour(0xff253345));
+   box->setColour(juce::ComboBox::textColourId,juce::Colours::white);
+   addAndMakeVisible(*box);
+ }
+ divisionAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"lfoDivision",lfoDivision);
+ shapeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"lfoShape",lfoShape);
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
  // Size the editor only AFTER all controls exist, so resized() positions every knob.
  setSize(880,680);
@@ -51,10 +70,14 @@ void RageForgeEditor::paint(juce::Graphics& g){
 void RageForgeEditor::resized(){
  brand.setBounds(24,14,320,58);tagline.setBounds(28,70,370,22);
  preset.setBounds(595,36,255,35);subtitle.setBounds(590,82,270,25);
- // 6 columns by 3 rows, 18 large knobs
+ // 6 columns by 3 rows. The two LFO selectors occupy the last cell.
  for(size_t i=0;i<knobs.size();++i){int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
   int x=27+col*140,y=177+row*136;
   knobs[i]->label.setBounds(x,y,126,22);knobs[i]->slider.setBounds(x+7,y+18,112,102);
  }
+ lfoDivisionLabel.setBounds(726,453,126,18);
+ lfoDivision.setBounds(727,472,124,28);
+ lfoShapeLabel.setBounds(726,511,126,18);
+ lfoShape.setBounds(727,530,124,28);
  mono.setBounds(36,602,170,26);
 }
