@@ -1,4 +1,40 @@
 #include "PluginEditor.h"
+void RageForgeEditor::WaveDraw::paint(juce::Graphics& g){
+ const auto r=getLocalBounds().toFloat();
+ g.setColour(juce::Colour(0xff020902));g.fillRoundedRectangle(r,5.f);
+ g.setColour(juce::Colour(0xff375a38));g.drawRoundedRectangle(r.reduced(.5f),5.f,1.f);
+ g.setColour(juce::Colour(0xff274b25));
+ g.drawHorizontalLine(getHeight()/2,5.f,(float)getWidth()-5.f);
+ for(int i=1;i<8;++i)g.drawVerticalLine(getWidth()*i/8,4.f,(float)getHeight()-4.f);
+ juce::Path p;
+ for(int i=0;i<rage::Engine::waveSize;++i){
+  const float x=5.f+((float)i/(rage::Engine::waveSize-1))*(getWidth()-10.f);
+  const float y=(getHeight()*.5f)-processor.getWavePoint(i)*(getHeight()*.5f-9.f);
+  if(i==0)p.startNewSubPath(x,y);else p.lineTo(x,y);
+ }
+ g.setColour(juce::Colour(0x5076ff29));g.strokePath(p,juce::PathStrokeType(5.f));
+ g.setColour(juce::Colour(0xffb5ff6a));g.strokePath(p,juce::PathStrokeType(1.6f));
+}
+void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
+ const float x=juce::jlimit(0.f,1.f,(e.position.x-5.f)/juce::jmax(1.f,(float)getWidth()-10.f));
+ const float y=juce::jlimit(-1.f,1.f,(getHeight()*.5f-e.position.y)/juce::jmax(1.f,getHeight()*.5f-9.f));
+ const int index=juce::jlimit(0,rage::Engine::waveSize-1,juce::roundToInt(x*(rage::Engine::waveSize-1)));
+ if(lastIndex>=0&&lastIndex!=index){
+   const int step=index>lastIndex?1:-1;
+   for(int k=lastIndex+step;k!=index+step;k+=step){
+     const float t=(float)(k-lastIndex)/(float)(index-lastIndex);
+     processor.setWavePoint(k,lastValue+(y-lastValue)*t);
+   }
+ }else processor.setWavePoint(index,y);
+ lastIndex=index;lastValue=y;repaint();
+}
+void RageForgeEditor::WaveDraw::mouseDown(const juce::MouseEvent& e){lastIndex=-1;edit(e);}
+void RageForgeEditor::WaveDraw::mouseDrag(const juce::MouseEvent& e){edit(e);}
+void RageForgeEditor::WaveDraw::mouseDoubleClick(const juce::MouseEvent&){
+ for(int i=0;i<rage::Engine::waveSize;++i)
+  processor.setWavePoint(i,std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
+ lastIndex=-1;repaint();
+}
 void RageForgeEditor::NeonLookAndFeel::drawRotarySlider(juce::Graphics& g,int x,int y,int w,int h,float pos,float start,float end,juce::Slider& slider){
  auto bounds=juce::Rectangle<float>((float)x,(float)y,(float)w,(float)h);
  const float d=juce::jmin(bounds.getWidth(),bounds.getHeight())-20.f;
@@ -37,8 +73,10 @@ void RageForgeEditor::NeonLookAndFeel::drawComboBox(juce::Graphics& g,int width,
  g.setColour(juce::Colour(0xffb5ff6a));g.strokePath(arrow,juce::PathStrokeType(2.f));
  juce::ignoreUnused(box);
 }
-RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p){
+RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p),waveDrawing(p){
  setLookAndFeel(&neon);
+ addAndMakeVisible(waveDrawing);
+ waveDrawing.setTooltip("Draw a periodic oscillator wave. Double-click to reset to sine.");
 
  brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions("Impact",53.f,juce::Font::bold)));
  brand.setColour(juce::Label::textColourId,juce::Colour(0xff76ff29));addAndMakeVisible(brand);
@@ -103,6 +141,17 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  // The DSP already uses these settings; the visualization must follow them too.
  lfoDivision.onChange=[this]{repaint();};
  lfoShape.onChange=[this]{repaint();};
+ for(auto* slider:{&waveBlendSlider,&waveWarpSlider}){
+  slider->setSliderStyle(juce::Slider::LinearHorizontal);
+  slider->setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
+  slider->setColour(juce::Slider::trackColourId,juce::Colour(0xff76ff29));
+  slider->setColour(juce::Slider::thumbColourId,juce::Colour(0xffb5ff6a));
+  addAndMakeVisible(*slider);
+ }
+ waveBlendSlider.setTooltip("Blend your drawn waveform into Oscillator 1.");
+ waveWarpSlider.setTooltip("Warp the custom wavetable's phase for new harmonics.");
+ waveBlendAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,"waveBlend",waveBlendSlider);
+ waveWarpAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,"waveWarp",waveWarpSlider);
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
  neon.setColour(juce::ComboBox::textColourId,juce::Colour(0xffeaffd9));
  neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff0d180f));
@@ -148,45 +197,14 @@ void RageForgeEditor::paint(juce::Graphics& g){
  module(329,140,422,192,"02   WAVEFORM DISPLAY");
  module(764,140,294,192,"03   LFO CONTROLS");
  g.setColour(juce::Colour(0xffa1df8b));g.setFont(11.f);
- g.drawText("OSC 1  //  MORPH  +  FM",39,177,255,16,juce::Justification::left);
- g.drawText("OSC 2  //  DETUNE  +  SUB",39,231,255,16,juce::Justification::left);
- // Previews evaluate the same oscillators as RageDSP, using a fixed note and
- // a frozen LFO position. They show the wave SHAPE, not a recorded audio trace.
+ g.setColour(juce::Colour(0xffa1df8b));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+ g.drawText("DRAW WAVETABLE  /  DOUBLE CLICK TO RESET",39,177,265,17,juce::Justification::left);
+ g.drawText("WAVE BLEND",40,271,95,19,juce::Justification::centredLeft);
+ g.drawText("PHASE WARP",40,297,95,19,juce::Justification::centredLeft);
  const float morph=processor.state.getRawParameterValue("shape")->load();
  const float fm=processor.state.getRawParameterValue("fm")->load();
  const float detune=processor.state.getRawParameterValue("detune")->load();
  const float movement=processor.state.getRawParameterValue("movement")->load();
- for(int j=0;j<2;++j){
-   const auto r=juce::Rectangle<float>(39.f,197.f+j*53.f,260.f,38.f);
-   g.setColour(juce::Colour(0xff101d10));g.fillRoundedRectangle(r,5.f);
-   const float previewCycles=4.f;
-   const float sampleSteps=512.f;
-   const float dt=previewCycles/sampleSteps;
-   const float phase2Factor=1.f+detune*.018f;
-   const float frozenLfo=.15f*movement;
-   const float waveShape=rage::clamp(morph+frozenLfo,0.f,1.f);
-   juce::Path wave;
-   for(int i=0;i<=512;++i){
-     const float t=(float)i/sampleSteps;
-     const float basePhase=t*previewCycles;
-     const float fmPhase=basePhase*(1.5f+6.f*fm);
-     const float fmAmount=std::sin(rage::pi*2.f*fmPhase)*fm*2.2f;
-     const float phase=j==0
-       ?rage::fract(basePhase+fmAmount*.10f)
-       :rage::fract(basePhase*phase2Factor-fmAmount*.065f);
-     const float shape=j==0?waveShape:rage::clamp(waveShape+.24f,0.f,1.f);
-     const float value=rage::osc(phase,dt*(j==0?1.f:phase2Factor),shape);
-     const float x=r.getX()+7.f+t*(r.getWidth()-14.f);
-     const float y=r.getCentreY()-value*14.f;
-     if(i==0)wave.startNewSubPath(x,y);else wave.lineTo(x,y);
-   }
-   {
-     juce::Graphics::ScopedSaveState clipped(g);
-     g.reduceClipRegion(r.reduced(3.f).getSmallestIntegerContainer());
-     g.setColour(lime.withAlpha(.28f));g.strokePath(wave,juce::PathStrokeType(4.f));
-     g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.5f));
-   }
- }
  // The oscilloscope is a visual preview driven by morph/FM/movement parameters.
  const auto scope=juce::Rectangle<float>(345.f,184.f,390.f,116.f);
  g.setColour(juce::Colour(0xff020802));g.fillRoundedRectangle(scope,6.f);
@@ -282,6 +300,9 @@ void RageForgeEditor::resized(){
      juce::jmax(1,juce::roundToInt(w*scale)),juce::jmax(1,juce::roundToInt(h*scale)));
  };
  brand.setBounds(scaled(26,14,620,69));
+ waveDrawing.setBounds(scaled(39,194,260,74));
+ waveBlendSlider.setBounds(scaled(135,272,160,18));
+ waveWarpSlider.setBounds(scaled(135,298,160,18));
  tagline.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,13.f*scale))));
  tagline.setBounds(scaled(39,81,680,20));
  preset.setBounds(scaled(787,25,257,38));
@@ -302,5 +323,5 @@ void RageForgeEditor::resized(){
  lfoShapeLabel.setBounds(scaled(911,201,123,16));
  lfoShape.setBounds(scaled(910,217,125,28));
  // Mono/legato lives in the oscillator card; never cover the LFO graph.
- mono.setBounds(scaled(49,297,229,23));
+ mono.setBounds(scaled(833,118,201,21));
 }
