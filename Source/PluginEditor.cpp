@@ -156,7 +156,6 @@ void RageForgeEditor::paint(juce::Graphics& g){
  const float fm=processor.state.getRawParameterValue("fm")->load();
  const float detune=processor.state.getRawParameterValue("detune")->load();
  const float movement=processor.state.getRawParameterValue("movement")->load();
- const float sub=processor.state.getRawParameterValue("sub")->load();
  for(int j=0;j<2;++j){
    const auto r=juce::Rectangle<float>(39.f,197.f+j*53.f,260.f,38.f);
    g.setColour(juce::Colour(0xff101d10));g.fillRoundedRectangle(r,5.f);
@@ -197,8 +196,14 @@ void RageForgeEditor::paint(juce::Graphics& g){
  const float move=movement;
  juce::Path waveform;
  for(int i=0;i<376;++i){
-   float t=(float)i/376.f, p=t*juce::MathConstants<float>::twoPi*8.f;
-   float value=std::sin(p+fm*2.f*std::sin(p*3.2f))*(.65f+.35f*std::sin(morph+t*12.f*move));
+   float t=(float)i/376.f;
+   const float basePhase=t*8.f;
+   const float fmAmount=std::sin(2.f*rage::pi*basePhase*(1.5f+6.f*fm))*fm*2.2f;
+   const float shape=rage::clamp(morph+.15f*move,0.f,1.f);
+   const float a=rage::osc(rage::fract(basePhase+fmAmount*.10f),8.f/376.f,shape);
+   const float b=rage::osc(rage::fract(basePhase*(1.f+detune*.018f)-fmAmount*.065f),
+                            (8.f/376.f)*(1.f+detune*.018f),rage::clamp(shape+.24f,0.f,1.f));
+   const float value=.60f*a+.40f*b;
    float x=scope.getX()+7.f+(float)i,y=scope.getCentreY()-value*43.f;
    if(i==0)waveform.startNewSubPath(x,y);else waveform.lineTo(x,y);
  }
