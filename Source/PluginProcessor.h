@@ -30,10 +30,15 @@ public:
  void selectPreset(int);
  void setWavePoint(int index,float value);
  float getWavePoint(int index) const;
+ bool isWavePlaying() const noexcept {return wavePlaying.load(std::memory_order_relaxed);}
+ float getWavePhase() const noexcept {return wavePhase.load(std::memory_order_relaxed);}
+ float getWaveScopeProgress() const noexcept {return waveScopeProgress.load(std::memory_order_relaxed);}
  juce::AudioProcessorValueTreeState state;
 private:
  rage::Engine engine;
  std::array<std::atomic<float>,rage::Engine::waveSize> userWave{};
+ std::atomic<bool> wavePlaying{false};
+ std::atomic<float> wavePhase{0.f},waveScopeProgress{0.f};
  void syncParameters();
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RageForgeProcessor)
 };
