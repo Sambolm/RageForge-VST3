@@ -9,6 +9,9 @@ public:
 private:
  RageForgeProcessor& processor;
  juce::ComboBox preset;
+ juce::ComboBox lfoDivision, lfoShape;
+ juce::Label lfoDivisionLabel, lfoShapeLabel;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> divisionAttachment, shapeAttachment;
  juce::Label brand,tagline,subtitle;
  struct Knob {
   juce::Slider slider;
