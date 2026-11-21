@@ -7,45 +7,45 @@ void RageForgeEditor::NeonLookAndFeel::drawRotarySlider(juce::Graphics& g,int x,
  const float angle=start+pos*(end-start);
  juce::Path track;
  track.addCentredArc(centre.x,centre.y,radius,radius,0.f,start,end,true);
- g.setColour(juce::Colour(0xff283442));
+ g.setColour(juce::Colour(0xff1f3521));
  g.strokePath(track,juce::PathStrokeType(7.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
  juce::Path arc;
  arc.addCentredArc(centre.x,centre.y,radius,radius,0.f,start,angle,true);
- const auto accent=juce::Colour(0xffff335b);
+ const auto accent=juce::Colour(0xff76ff29);
  g.setColour(accent.withAlpha(.16f));
  g.strokePath(arc,juce::PathStrokeType(13.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
  g.setColour(accent);
  g.strokePath(arc,juce::PathStrokeType(6.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
- g.setColour(juce::Colour(0xff101b29));
+ g.setColour(juce::Colour(0xff0d180f));
  g.fillEllipse(centre.x-radius*.77f,centre.y-radius*.77f,radius*1.54f,radius*1.54f);
- g.setColour(juce::Colour(0xff344b5d));
+ g.setColour(juce::Colour(0xff426b3c));
  g.drawEllipse(centre.x-radius*.77f,centre.y-radius*.77f,radius*1.54f,radius*1.54f,1.5f);
  juce::Path indicator;
  indicator.addLineSegment({centre.x+std::sin(angle)*radius*.35f,centre.y-std::cos(angle)*radius*.35f,
                            centre.x+std::sin(angle)*radius*.68f,centre.y-std::cos(angle)*radius*.68f},3.f);
- g.setColour(juce::Colour(0xff72ecfa));
+ g.setColour(juce::Colour(0xffb5ff6a));
  g.strokePath(indicator,juce::PathStrokeType(3.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
  juce::ignoreUnused(slider);
 }
 void RageForgeEditor::NeonLookAndFeel::drawComboBox(juce::Graphics& g,int width,int height,bool isDown,int,int,int,int,juce::ComboBox& box){
  auto rect=juce::Rectangle<float>(0.f,0.f,(float)width,(float)height).reduced(1.f);
- g.setColour(juce::Colour(isDown?0xff21334a:0xff152637));g.fillRoundedRectangle(rect,7.f);
- g.setColour(juce::Colour(0xff356275));g.drawRoundedRectangle(rect,7.f,1.f);
+ g.setColour(juce::Colour(isDown?0xff203723:0xff101f13));g.fillRoundedRectangle(rect,7.f);
+ g.setColour(juce::Colour(0xff497c3c));g.drawRoundedRectangle(rect,7.f,1.f);
  juce::Path arrow;
  float cx=(float)width-16.f,cy=(float)height*.5f;
  arrow.startNewSubPath(cx-5.f,cy-2.f);arrow.lineTo(cx,cy+3.f);arrow.lineTo(cx+5.f,cy-2.f);
- g.setColour(juce::Colour(0xff72ecfa));g.strokePath(arrow,juce::PathStrokeType(2.f));
+ g.setColour(juce::Colour(0xffb5ff6a));g.strokePath(arrow,juce::PathStrokeType(2.f));
  juce::ignoreUnused(box);
 }
 RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&neon);
 
- brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions(40.f,juce::Font::bold)));
- brand.setColour(juce::Label::textColourId,juce::Colour(0xffff335b));addAndMakeVisible(brand);
- tagline.setText("DUBSTEP SYNTHESIS SYSTEM  /  ETERNATONES",juce::dontSendNotification);tagline.setFont(juce::Font(juce::FontOptions(13.f)));
- tagline.setColour(juce::Label::textColourId,juce::Colour(0xff7ce8f8));addAndMakeVisible(tagline);
- subtitle.setText("Select a starting patch, play MIDI, then sculpt the sound.",juce::dontSendNotification);
- subtitle.setColour(juce::Label::textColourId,juce::Colour(0xffb5d1df));addAndMakeVisible(subtitle);
+ brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions(53.f,juce::Font::bold)));
+ brand.setColour(juce::Label::textColourId,juce::Colour(0xff76ff29));addAndMakeVisible(brand);
+ tagline.setText("DUBSTEP BASS SYNTHESIZER  //  ETERNATONES",juce::dontSendNotification);tagline.setFont(juce::Font(juce::FontOptions(13.f)));
+ tagline.setColour(juce::Label::textColourId,juce::Colour(0xffb5ff6a));addAndMakeVisible(tagline);
+ subtitle.setText("WAVETABLE  /  FM  /  FORMANT  /  SUB",juce::dontSendNotification);
+ subtitle.setColour(juce::Label::textColourId,juce::Colour(0xffb5dbaa));addAndMakeVisible(subtitle);
  const char* names[]={"Impact Stab","Talking Monster","Cyber Metal","Void Reese","Riddim Chop","Liquid Growl","Laser Shot","Sub Engine"};
  for(int i=0;i<8;++i)preset.addItem(names[i],i+1);
  preset.setTextWhenNothingSelected("LOAD STARTING PATCH");
@@ -61,16 +61,15 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  for(auto [id,label]:controls){
   auto k=std::make_unique<Knob>();
   k->slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-  k->slider.setTextBoxStyle(juce::Slider::TextBoxBelow,false,74,20);
+  k->slider.setTextBoxStyle(juce::Slider::TextBoxBelow,false,80,20);
   const juce::String idString(id);
   // No long decimal strings. Envelopes retain millisecond-level editing accuracy.
-  k->slider.setNumDecimalPlacesToDisplay(idString=="cutoff"?0:
-     (idString=="attack"||idString=="decay"||idString=="release"?3:2));
-  k->slider.setColour(juce::Slider::textBoxTextColourId,juce::Colour(0xffc9f7ff));
+  k->slider.setNumDecimalPlacesToDisplay(2);
+  k->slider.setColour(juce::Slider::textBoxTextColourId,juce::Colour(0xffdcffcd));
   k->slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colour(0xff101d2a));
-  k->slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff254558));
-  k->slider.setColour(juce::Slider::rotarySliderFillColourId,juce::Colour(0xffff335b));
-  k->slider.setColour(juce::Slider::thumbColourId,juce::Colour(0xff72ecfa));
+  k->slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff345936));
+  k->slider.setColour(juce::Slider::rotarySliderFillColourId,juce::Colour(0xff76ff29));
+  k->slider.setColour(juce::Slider::thumbColourId,juce::Colour(0xffb5ff6a));
   k->label.setText(label,juce::dontSendNotification);k->label.setJustificationType(juce::Justification::centred);
   k->label.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
   k->label.setColour(juce::Label::textColourId,juce::Colours::lightgrey);
@@ -91,51 +90,123 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
    addAndMakeVisible(*label);
  }
  for(auto* box:{&lfoDivision,&lfoShape}){
-   box->setColour(juce::ComboBox::backgroundColourId,juce::Colour(0xff152637));
+   box->setColour(juce::ComboBox::backgroundColourId,juce::Colour(0xff101f13));
    box->setColour(juce::ComboBox::textColourId,juce::Colours::white);
    addAndMakeVisible(*box);
  }
  divisionAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"lfoDivision",lfoDivision);
  shapeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"lfoShape",lfoShape);
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
- neon.setColour(juce::ComboBox::textColourId,juce::Colour(0xffe5f7ff));
- neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff101b29));
- neon.setColour(juce::PopupMenu::textColourId,juce::Colour(0xffe5f7ff));
+ neon.setColour(juce::ComboBox::textColourId,juce::Colour(0xffeaffd9));
+ neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff0d180f));
+ neon.setColour(juce::PopupMenu::textColourId,juce::Colour(0xffeaffd9));
  // Size the editor only AFTER all controls exist, so resized() positions every knob.
- setSize(880,680);
+ for(auto &k:knobs) k->slider.onValueChange=[this]{repaint(329,140,422,192);};
+ setSize(1080,800);
 }
 RageForgeEditor::~RageForgeEditor(){setLookAndFeel(nullptr);}
 void RageForgeEditor::paint(juce::Graphics& g){
- g.fillAll(juce::Colour(0xff080e17));
- juce::ColourGradient head(juce::Colour(0xff19293d),0.f,0.f,juce::Colour(0xff080e17),0.f,135.f,false);
- g.setGradientFill(head);g.fillRect(0,0,getWidth(),137);
- g.setColour(juce::Colour(0x20ff335b));
- for(int x=0;x<getWidth();x+=29)g.drawVerticalLine(x,3.f,124.f);
- g.setColour(juce::Colour(0xfffa355c));g.fillRoundedRectangle(20.f,115.f,838.f,2.f,1.f);
- g.setColour(juce::Colour(0xff183045));g.fillRoundedRectangle(15.f,157.f,850.f,440.f,13.f);
- g.setColour(juce::Colour(0xff31546a));g.drawRoundedRectangle(15.f,157.f,850.f,440.f,13.f,1.2f);
- g.setColour(juce::Colour(0xff0b1826));
- for(int row=0;row<3;++row)for(int col=0;col<6;++col)
-    g.fillRoundedRectangle((float)(23+col*140),(float)(170+row*136),134.f,126.f,8.f);
- g.setColour(juce::Colour(0xff64dfe9));g.setFont(juce::Font(juce::FontOptions(12.f,juce::Font::bold)));
- g.drawText("OSCILLATORS  /  FM",26,135,275,18,juce::Justification::centredLeft);
- g.drawText("MODULATION  /  TONE",307,135,275,18,juce::Justification::centredLeft);
- g.drawText("ENVELOPES  /  OUTPUT",606,135,260,18,juce::Justification::centredLeft);
- g.setColour(juce::Colour(0xff4a788b));g.drawVerticalLine(302,160.f,590.f);g.drawVerticalLine(586,160.f,590.f);
- g.setColour(juce::Colour(0xff96b4c5));g.setFont(12.f);
- g.drawText("RAGEFORGE  //  4x OVERSAMPLING  //  FM + FORMANT  //  SUB ENGINE",222,614,630,26,juce::Justification::centredRight);
+ const auto lime=juce::Colour(0xff76ff29), glow=juce::Colour(0xffb5ff6a);
+ const auto bg=juce::Colour(0xff050905);
+ g.fillAll(bg);
+ juce::ColourGradient background(juce::Colour(0xff152416),540.f,0.f,bg,540.f,800.f,false);
+ g.setGradientFill(background);g.fillRect(getLocalBounds());
+ // Slanted industrial header and electric-green masthead.
+ juce::Path header;
+ header.startNewSubPath(0.f,0.f);header.lineTo(1080.f,0.f);header.lineTo(1080.f,107.f);
+ header.lineTo(1035.f,119.f);header.lineTo(0.f,119.f);header.closeSubPath();
+ g.setColour(juce::Colour(0xff0a130b));g.fillPath(header);
+ g.setColour(lime.withAlpha(.12f));
+ for(int x=0;x<1080;x+=40)g.drawLine((float)x,0.f,(float)x+65.f,119.f,1.f);
+ g.setColour(lime.withAlpha(.25f));g.drawLine(0.f,119.f,1080.f,119.f,2.f);
+ g.setColour(lime.withAlpha(.13f));g.fillRoundedRectangle(20.f,17.f,480.f,78.f,6.f);
+ g.setColour(lime.withAlpha(.45f));g.drawRoundedRectangle(20.f,17.f,480.f,78.f,6.f,1.4f);
+ // Instrument modules.
+ const auto module=[&](float x,float y,float w,float h,const juce::String& title){
+   g.setColour(juce::Colour(0xff0b150c));g.fillRoundedRectangle(x,y,w,h,9.f);
+   g.setColour(lime.withAlpha(.44f));g.drawRoundedRectangle(x,y,w,h,9.f,1.1f);
+   g.setColour(glow);g.setFont(juce::Font(juce::FontOptions(14.f,juce::Font::bold)));
+   g.drawText(title,(int)x+14,(int)y+9,(int)w-26,20,juce::Justification::left);
+   g.setColour(lime.withAlpha(.30f));g.drawLine(x+12,y+35,x+w-12,y+35,1.f);
+ };
+ module(22,140,294,192,"01   OSCILLATORS");
+ module(329,140,422,192,"02   WAVEFORM DISPLAY");
+ module(764,140,294,192,"03   LFO CONTROLS");
+ g.setColour(juce::Colour(0xffa1df8b));g.setFont(11.f);
+ g.drawText("OSC 1  //  MORPH  +  FM",39,177,255,16,juce::Justification::left);
+ g.drawText("OSC 2  //  DETUNE  +  SUB",39,231,255,16,juce::Justification::left);
+ for(int j=0;j<2;++j){
+   auto r=juce::Rectangle<float>(39.f,197.f+j*53.f,260.f,38.f);
+   g.setColour(juce::Colour(0xff101d10));g.fillRoundedRectangle(r,5.f);
+   juce::Path wave;
+   for(int i=0;i<240;++i){
+     float t=(float)i/240.f;
+     float val=j==0?std::sin(t*juce::MathConstants<float>::twoPi*5.f):
+       2.f*(t*5.f-std::floor(t*5.f))-1.f;
+     const float xx=r.getX()+10.f+(float)i,yy=r.getCentreY()-val*13.f;
+     if(i==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);
+   }
+   g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.8f));
+ }
+ // The oscilloscope is a visual preview driven by morph/FM/movement parameters.
+ const auto scope=juce::Rectangle<float>(345.f,182.f,390.f,135.f);
+ g.setColour(juce::Colour(0xff020802));g.fillRoundedRectangle(scope,6.f);
+ g.setColour(lime.withAlpha(.13f));
+ for(int i=1;i<10;++i){float x=scope.getX()+scope.getWidth()*i/10.f;g.drawVerticalLine((int)x,scope.getY(),scope.getBottom());}
+ for(int i=1;i<4;++i){float y=scope.getY()+scope.getHeight()*i/4.f;g.drawHorizontalLine((int)y,scope.getX(),scope.getRight());}
+ const float morph=processor.state.getRawParameterValue("shape")->load();
+ const float fm=processor.state.getRawParameterValue("fm")->load();
+ const float move=processor.state.getRawParameterValue("movement")->load();
+ juce::Path waveform;
+ for(int i=0;i<376;++i){
+   float t=(float)i/376.f, p=t*juce::MathConstants<float>::twoPi*8.f;
+   float value=std::sin(p+fm*2.f*std::sin(p*3.2f))*(.65f+.35f*std::sin(morph+t*12.f*move));
+   float x=scope.getX()+7.f+(float)i,y=scope.getCentreY()-value*48.f;
+   if(i==0)waveform.startNewSubPath(x,y);else waveform.lineTo(x,y);
+ }
+ g.setColour(lime.withAlpha(.18f));g.strokePath(waveform,juce::PathStrokeType(8.f));
+ g.setColour(lime.withAlpha(.5f));g.strokePath(waveform,juce::PathStrokeType(4.f));
+ g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.8f));
+ g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
+ g.drawText("MORPHING WAVEFORM  //  LIVE PARAMETERS",353,316,345,13,juce::Justification::left);
+ g.setColour(lime.withAlpha(.2f));g.drawRoundedRectangle(780.f,188.f,264.f,127.f,6.f,1.f);
+ juce::Path lfo;
+ for(int i=0;i<240;++i){
+  float t=(float)i/240.f,y=std::sin(t*juce::MathConstants<float>::twoPi*2.f);
+  if(i==0)lfo.startNewSubPath(790.f,292.f-y*13.f);else lfo.lineTo(790.f+i,292.f-y*13.f);
+ }
+ g.setColour(glow.withAlpha(.5f));g.strokePath(lfo,juce::PathStrokeType(1.5f));
+ const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
+                      "MOVEMENT  /  FILTER & ENVELOPES",
+                      "FINAL SHAPE  /  MIX & OUTPUT"};
+ for(int row=0;row<3;++row){
+   float y=352.f+row*134.f;
+   g.setColour(juce::Colour(0xff0b150c));g.fillRoundedRectangle(22.f,y,1036.f,125.f,9.f);
+   g.setColour(lime.withAlpha(.36f));g.drawRoundedRectangle(22.f,y,1036.f,125.f,9.f,1.2f);
+   g.setColour(glow);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
+   g.drawText(titles[row],34,(int)y+5,610,19,juce::Justification::left);
+   g.setColour(lime.withAlpha(.11f));
+   for(int col=1;col<6;++col)g.drawVerticalLine(22+col*172,y+28,y+121);
+ }
+ g.setColour(lime.withAlpha(.36f));g.drawLine(22.f,765.f,1058.f,765.f,2.f);
+ g.setColour(juce::Colour(0xffa7d59a));g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
+ g.drawText("ETERNATONES PRODUCTIONS  //  BASS DESIGN ENGINE",26,770,700,20,juce::Justification::left);
+ g.setColour(lime);g.drawText("VST3  /  4X OVERSAMPLING",806,770,242,20,juce::Justification::centredRight);
 }
 void RageForgeEditor::resized(){
- brand.setBounds(24,14,320,58);tagline.setBounds(28,70,370,22);
- preset.setBounds(595,36,255,35);subtitle.setBounds(590,82,270,25);
- // 6 columns by 3 rows. The two LFO selectors occupy the last cell.
- for(size_t i=0;i<knobs.size();++i){int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
-  int x=27+col*140,y=177+row*136;
-  knobs[i]->label.setBounds(x,y,126,22);knobs[i]->slider.setBounds(x+7,y+18,112,102);
+ brand.setBounds(36,18,500,62);
+ tagline.setBounds(38,79,560,20);
+ preset.setBounds(787,25,257,38);
+ subtitle.setBounds(787,70,267,23);
+ for(size_t i=0;i<knobs.size();++i){
+   int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
+   int x=25+col*172,y=376+row*134;
+   knobs[i]->label.setBounds(x,y,165,19);
+   knobs[i]->slider.setBounds(x+20,y+17,128,91);
  }
- lfoDivisionLabel.setBounds(726,453,126,18);
- lfoDivision.setBounds(727,472,124,28);
- lfoShapeLabel.setBounds(726,511,126,18);
- lfoShape.setBounds(727,530,124,28);
- mono.setBounds(36,602,170,26);
+ lfoDivisionLabel.setBounds(781,201,120,16);
+ lfoDivision.setBounds(782,217,120,28);
+ lfoShapeLabel.setBounds(911,201,123,16);
+ lfoShape.setBounds(910,217,125,28);
+ mono.setBounds(820,299,206,24);
 }
