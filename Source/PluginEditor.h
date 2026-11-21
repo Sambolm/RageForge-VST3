@@ -14,6 +14,21 @@ private:
   void drawComboBox(juce::Graphics&, int, int, bool, int, int, int, int, juce::ComboBox&) override;
  } neon;
  RageForgeProcessor& processor;
+ class WaveDraw final : public juce::Component {
+ public:
+  explicit WaveDraw(RageForgeProcessor& p):processor(p){}
+  void paint(juce::Graphics&) override;
+  void mouseDown(const juce::MouseEvent&) override;
+  void mouseDrag(const juce::MouseEvent&) override;
+  void mouseDoubleClick(const juce::MouseEvent&) override;
+ private:
+  RageForgeProcessor& processor;
+  int lastIndex=-1;float lastValue=0.f;
+  void edit(const juce::MouseEvent&);
+ };
+ WaveDraw waveDrawing;
+ juce::Slider waveBlendSlider,waveWarpSlider;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> waveBlendAttachment,waveWarpAttachment;
  juce::ComboBox preset;
  juce::ComboBox lfoDivision, lfoShape;
  juce::Label lfoDivisionLabel, lfoShapeLabel;
