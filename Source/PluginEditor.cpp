@@ -164,7 +164,7 @@ void RageForgeEditor::paint(juce::Graphics& g){
    g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.8f));
  }
  // The oscilloscope is a visual preview driven by morph/FM/movement parameters.
- const auto scope=juce::Rectangle<float>(345.f,182.f,390.f,135.f);
+ const auto scope=juce::Rectangle<float>(345.f,184.f,390.f,116.f);
  g.setColour(juce::Colour(0xff020802));g.fillRoundedRectangle(scope,6.f);
  g.setColour(lime.withAlpha(.13f));
  for(int i=1;i<10;++i){float x=scope.getX()+scope.getWidth()*i/10.f;g.drawVerticalLine((int)x,scope.getY(),scope.getBottom());}
@@ -176,14 +176,14 @@ void RageForgeEditor::paint(juce::Graphics& g){
  for(int i=0;i<376;++i){
    float t=(float)i/376.f, p=t*juce::MathConstants<float>::twoPi*8.f;
    float value=std::sin(p+fm*2.f*std::sin(p*3.2f))*(.65f+.35f*std::sin(morph+t*12.f*move));
-   float x=scope.getX()+7.f+(float)i,y=scope.getCentreY()-value*48.f;
+   float x=scope.getX()+7.f+(float)i,y=scope.getCentreY()-value*43.f;
    if(i==0)waveform.startNewSubPath(x,y);else waveform.lineTo(x,y);
  }
  g.setColour(lime.withAlpha(.18f));g.strokePath(waveform,juce::PathStrokeType(8.f));
  g.setColour(lime.withAlpha(.5f));g.strokePath(waveform,juce::PathStrokeType(4.f));
  g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.8f));
  g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
- g.drawText("MORPHING WAVEFORM  //  LIVE PARAMETERS",353,316,345,13,juce::Justification::left);
+ g.drawText("MORPHING WAVEFORM  //  PARAMETER PREVIEW",353,305,345,16,juce::Justification::left);
  // One displayed bar (4 beats): the chosen division controls cycle count,
  // and the chosen shape uses precisely the same transfer function as audio DSP.
  const auto graph=juce::Rectangle<float>(782.f,255.f,258.f,59.f);
@@ -247,8 +247,9 @@ void RageForgeEditor::resized(){
    int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
    int x=25+col*172,y=376+row*134;
    knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
-   knobs[i]->label.setBounds(scaled(x,y,165,19));
-   knobs[i]->slider.setBounds(scaled(x+20,y+17,128,91));
+   knobs[i]->label.setBounds(scaled(x,y,165,18));
+   // Keep the full dial AND its numeric box inside the 125px row panel.
+   knobs[i]->slider.setBounds(scaled(x+20,y+20,128,77));
  }
  lfoDivisionLabel.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
  lfoShapeLabel.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
@@ -256,5 +257,6 @@ void RageForgeEditor::resized(){
  lfoDivision.setBounds(scaled(782,217,120,28));
  lfoShapeLabel.setBounds(scaled(911,201,123,16));
  lfoShape.setBounds(scaled(910,217,125,28));
- mono.setBounds(scaled(820,299,206,24));
+ // Mono/legato lives in the oscillator card; never cover the LFO graph.
+ mono.setBounds(scaled(49,297,229,23));
 }
