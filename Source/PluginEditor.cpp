@@ -29,7 +29,13 @@ void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
  lastIndex=index;lastValue=y;repaint();
  if(auto* parent=getParentComponent())parent->repaint();
 }
-void RageForgeEditor::WaveDraw::mouseDown(const juce::MouseEvent& e){lastIndex=-1;edit(e);}
+void RageForgeEditor::WaveDraw::mouseDown(const juce::MouseEvent& e){
+ // A freshly drawn waveform should be audible immediately.
+ if(auto* blend=processor.state.getParameter("waveBlend"))
+   if(blend->convertFrom0to1(blend->getValue())<.05f)
+     blend->setValueNotifyingHost(blend->convertTo0to1(.85f));
+ lastIndex=-1;edit(e);
+}
 void RageForgeEditor::WaveDraw::mouseDrag(const juce::MouseEvent& e){edit(e);}
 void RageForgeEditor::WaveDraw::mouseDoubleClick(const juce::MouseEvent&){
  for(int i=0;i<rage::Engine::waveSize;++i)
