@@ -45,7 +45,12 @@ RageForgeProcessor::RageForgeProcessor():AudioProcessor(BusesProperties().withOu
  for(int i=0;i<rage::Engine::waveSize;++i)userWave[(size_t)i].store(std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
 }
 bool RageForgeProcessor::isBusesLayoutSupported(const BusesLayout& b) const {return b.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
-void RageForgeProcessor::prepareToPlay(double s,int){engine.prepare(static_cast<float>(s));}
+void RageForgeProcessor::prepareToPlay(double s,int){
+ engine.prepare(static_cast<float>(s));
+ wavePlaying.store(false,std::memory_order_relaxed);
+ wavePhase.store(0.f,std::memory_order_relaxed);
+ waveScopeProgress.store(0.f,std::memory_order_relaxed);
+}
 void RageForgeProcessor::syncParameters(){
  auto val=[this](const char*s){return state.getRawParameterValue(s)->load();};
  auto &p=engine.p;
@@ -77,6 +82,19 @@ void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Midi
     ++it;
   }
   auto out=engine.tick();audio.setSample(0,i,out[0]);audio.setSample(1,i,out[1]);
+ }
+ // One atomic snapshot per block: no locks and no GUI work on the audio thread.
+ // Use the most audible voice in poly mode, and the mono voice in mono mode.
+ const rage::Voice* displayed=nullptr;
+ for(const auto &voice:engine.voices)
+   if(voice.stage!=0 && (!displayed || voice.env>displayed->env))
+     displayed=&voice;
+ if(displayed){
+   wavePhase.store(displayed->phase1,std::memory_order_relaxed);
+   waveScopeProgress.store(((float)displayed->scopeCycle+displayed->phase1)/8.f,std::memory_order_relaxed);
+   wavePlaying.store(true,std::memory_order_relaxed);
+ }else{
+   wavePlaying.store(false,std::memory_order_relaxed);
  }
 }
 void RageForgeProcessor::getStateInformation(juce::MemoryBlock& dest){
