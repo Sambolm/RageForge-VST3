@@ -158,8 +158,9 @@ struct Engine {
   // Headroom reduces summing peaks without altering the oscillator settings.
   const float gain=std::pow(10.f,-clamp(p.headroomDb,0.f,18.f)/20.f);
   constexpr float ceiling=.891250938f;
-  return {clamp(sat(l*.90f)*gain,-ceiling,ceiling),
-          clamp(sat(r*.90f)*gain,-ceiling,ceiling)};
+  // Smooth soft ceiling rather than hard clipping, which would add new clicks.
+  return {ceiling*sat(sat(l*.90f)*gain/ceiling),
+          ceiling*sat(sat(r*.90f)*gain/ceiling)};
  }
 };
 } // namespace rage
