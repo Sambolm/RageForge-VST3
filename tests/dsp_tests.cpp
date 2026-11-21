@@ -55,5 +55,17 @@ int main(){
  offDraw.noteOn(41,1.f);
  double bypassDiff=0;for(int i=0;i<12000;++i){double d=off.tick()[0]-offDraw.tick()[0];bypassDiff+=d*d;}
  assert(bypassDiff<1e-8);
+ // The visual playhead is derived from real oscillator phase and cycle count.
+ Engine cursor;cursor.prepare(48000);cursor.noteOn(41,1.f);
+ int sawWrapping=0;int previousCycle=0;
+ for(int i=0;i<48000;++i){
+   cursor.tick();
+   const auto& v=cursor.voices[0];
+   assert(v.phase1>=0.f&&v.phase1<1.f);
+   assert(v.scopeCycle>=0&&v.scopeCycle<8);
+   if(v.scopeCycle!=previousCycle)++sawWrapping;
+   previousCycle=v.scopeCycle;
+ }
+ assert(sawWrapping>30);
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
