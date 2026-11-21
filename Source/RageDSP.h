@@ -41,7 +41,7 @@ struct Params {
  float cutoff=2400, resonance=.18f, vowel=.45f, movement=.55f, rate=2, drive=.50f;
  int lfoDivision=3,lfoShape=0;
  float attack=.005f, decay=.17f, sustain=.65f, release=.18f;
- float stereo=.35f, level=.50f, mix=.95f, glide=.0f;
+ float stereo=.35f, level=.50f, mix=.95f, glide=.0f, headroomDb=3.f;
  bool mono=true;
 };
 struct StateVariableFilter {
@@ -61,21 +61,30 @@ struct StateVariableFilter {
 struct Voice {
  int note=-1; bool holding=false; int stage=0; float env=0,velocity=1;
  float phase1=0,phase2=0,phaseFM=0,phaseSub=0, freq=55, target=55;
- float lfo=0, drift=0, pan=0; uint32_t rng=1234567;
+ float lfo=0, drift=0, pan=0, retriggerPitchFade=0; uint32_t rng=1234567;
  StateVariableFilter main,form1,form2;
  void reset(){*this=Voice{};}
  float randf(){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return (rng/4294967295.f)*2.f-1.f;}
  void start(int n,float vel,float offset,float hz, bool legato){
-  if(!legato){phase1=phase2=phaseFM=phaseSub=0;main.reset();form1.reset();form2.reset();env=0;stage=1;freq=hz;}
+  const bool active=stage!=0;
+  if(!legato && !active){
+    phase1=phase2=phaseFM=phaseSub=0;
+    main.reset();form1.reset();form2.reset();env=0;stage=1;freq=hz;
+    retriggerPitchFade=0.f;
+  }else if(!legato && active){
+    // On repeated notes, preserve the oscillator and filter continuity.
+    // Resetting an active mono voice produced an audible one-sample step.
+    stage=1;retriggerPitchFade=1.f;
+  }
   target=hz;note=n;holding=true;velocity=clamp(vel,.02f,1.f);pan=offset;
  }
  void stop(){holding=false;if(stage!=0)stage=4;}
  float envelope(const Params&p,float sr){
   switch(stage){
-    case 1:env+=1.f/(std::max(.001f,p.attack)*sr);if(env>=1){env=1;stage=2;}break;
+    case 1:env+=1.f/(std::max(.003f,p.attack)*sr);if(env>=1){env=1;stage=2;}break;
     case 2:env+=(p.sustain-env)*std::min(1.f,4.f/(std::max(.001f,p.decay)*sr));if(env<=p.sustain+.002f)stage=3;break;
     case 3:env=p.sustain;break;
-    case 4:env*=std::exp(-6.9f/(std::max(.01f,p.release)*sr));if(env<.00015f){env=0;stage=0;note=-1;}break;
+    case 4:env*=std::exp(-6.9f/(std::max(.008f,p.release)*sr));if(env<.00015f){env=0;stage=0;note=-1;}break;
     default:break;
   }
   return env;
@@ -103,8 +112,10 @@ struct Engine {
     const float envelope=v.envelope(p,sr);if(v.stage==0)continue;
     float sum=0;
     for(int k=0;k<4;++k){
-      const float glideCoeff=p.glide<=.001f?1.f:1.f-std::exp(-1.f/(p.glide*osr));
+      const float glideTime=v.retriggerPitchFade>0.f?std::max(.003f,p.glide):p.glide;
+      const float glideCoeff=glideTime<=.001f?1.f:1.f-std::exp(-1.f/(glideTime*osr));
       v.freq+=(v.target-v.freq)*glideCoeff;
+      v.retriggerPitchFade=std::max(0.f,v.retriggerPitchFade-1.f/(.003f*osr));
       const float beatRate=(beatBpm/60.f)/lfoBeatsPerCycle(p.lfoDivision);
       v.lfo=fract(v.lfo+beatRate/osr);
       const float mod=lfoValue(v.lfo,p.lfoShape);
@@ -143,7 +154,12 @@ struct Engine {
   }
   ++samples;
   // Gently limit summing overs to avoid digital overs, not a mastering limiter.
-  return {sat(l*.90f),sat(r*.90f)};
+  // Post-saturation master attenuation and safety ceiling (-1 dBFS peak).
+  // Headroom reduces summing peaks without altering the oscillator settings.
+  const float gain=std::pow(10.f,-clamp(p.headroomDb,0.f,18.f)/20.f);
+  constexpr float ceiling=.891250938f;
+  return {clamp(sat(l*.90f)*gain,-ceiling,ceiling),
+          clamp(sat(r*.90f)*gain,-ceiling,ceiling)};
  }
 };
 } // namespace rage
