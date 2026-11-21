@@ -56,7 +56,7 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
   {"cutoff","FILTER"},{"resonance","RESONANCE"},{"vowel","VOCAL"},{"movement","MOVEMENT"},
   {"drive","DRIVE"},{"attack","ATTACK"},{"decay","DECAY"},
   {"sustain","SUSTAIN"},{"release","RELEASE"},{"stereo","STEREO"},{"mix","EFFECT MIX"},
-  {"glide","GLIDE"},{"level","OUTPUT"}
+  {"glide","GLIDE"},{"level","OUTPUT"},{"headroom","HEADROOM dB"}
  };
  for(auto [id,label]:controls){
   auto k=std::make_unique<Knob>();
