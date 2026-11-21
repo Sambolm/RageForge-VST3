@@ -125,6 +125,7 @@ void RageForgeProcessor::selectPreset(int index){
   {"vowel",v.vow},{"movement",v.mov},{"rate",v.rate},{"drive",v.drive},{"attack",v.a},
   {"decay",v.d},{"sustain",v.s},{"release",v.r},{"stereo",v.spread},{"mix",v.mix},
   {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f},
+  {"waveBlend",0.f},{"waveWarp",0.f},
   {"lfoDivision", static_cast<float>(std::array<int,8>{3,3,2,5,1,4,1,5}[static_cast<size_t>(juce::jlimit(0,7,index))])},
   {"lfoShape", static_cast<float>(std::array<int,8>{4,0,2,1,4,1,3,0}[static_cast<size_t>(juce::jlimit(0,7,index))])}
  };
