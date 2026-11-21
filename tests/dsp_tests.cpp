@@ -24,5 +24,21 @@ int main(){
  Engine modB;modB.prepare(48000);modB.p.movement=1;modB.p.lfoDivision=2;modB.p.lfoShape=4;modB.noteOn(41,1);
  double shapeDiff=0;for(auto s:sine){const float d=s-modB.tick()[0];shapeDiff+=d*d;}
  assert(shapeDiff>.05);
+ // Guard against the click previously caused by resetting an active mono voice.
+ Engine loop;loop.prepare(48000);loop.p.mono=true;loop.p.attack=.001f;loop.p.headroomDb=0.f;
+ loop.noteOn(41,1.f);
+ float previous=0.f,maximum=0.f;
+ for(int i=0;i<9600;++i){auto x=loop.tick();previous=x[0];maximum=std::max(maximum,std::abs(previous));}
+ loop.noteOn(41,1.f);
+ const float first=loop.tick()[0];
+ assert(std::abs(first-previous)<.15f);
+ assert(maximum<=.892f);
+ // User headroom must actually attenuate the output, with clipping ceiling intact.
+ Engine loud;loud.prepare(48000);loud.p.headroomDb=0.f;loud.noteOn(41,1.f);
+ const auto loudMetrics=render(loud,12000);
+ Engine quiet;quiet.prepare(48000);quiet.p.headroomDb=12.f;quiet.noteOn(41,1.f);
+ const auto quietMetrics=render(quiet,12000);
+ assert(quietMetrics.energy<loudMetrics.energy*.20);
+ assert(loudMetrics.peak<=.892f && quietMetrics.peak<=.892f);
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
