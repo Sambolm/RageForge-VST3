@@ -36,10 +36,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"glide","Portamento",0,1,0,.15);
  add(l,"level","Output Level",0,1,.50);
  add(l,"headroom","Headroom (dB)",0,18,3);
+ add(l,"waveBlend","Drawn Wave Blend",0,1,0);
+ add(l,"waveWarp","Drawn Wave Warp",0,1,0);
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
  return l;
 }
-RageForgeProcessor::RageForgeProcessor():AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),state(*this,nullptr,"RAGEFORGE",createLayout()){}
+RageForgeProcessor::RageForgeProcessor():AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),state(*this,nullptr,"RAGEFORGE",createLayout()){
+ for(int i=0;i<rage::Engine::waveSize;++i)userWave[(size_t)i].store(std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
+}
 bool RageForgeProcessor::isBusesLayoutSupported(const BusesLayout& b) const {return b.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
 void RageForgeProcessor::prepareToPlay(double s,int){engine.prepare(static_cast<float>(s));}
 void RageForgeProcessor::syncParameters(){
@@ -54,10 +58,12 @@ void RageForgeProcessor::syncParameters(){
  p.attack=val("attack");p.decay=val("decay");p.sustain=val("sustain");p.release=val("release");
  p.stereo=val("stereo");p.mix=val("mix");p.glide=val("glide");p.level=val("level");
  p.headroomDb=val("headroom");p.mono=val("mono")>.5f;
+ p.waveBlend=val("waveBlend");p.waveWarp=val("waveWarp");
 }
 void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
  juce::ScopedNoDenormals denormals;
  audio.clear();syncParameters();
+ for(int k=0;k<rage::Engine::waveSize;++k)engine.setWavePoint(k,userWave[(size_t)k].load(std::memory_order_relaxed));
  if(auto* play=getPlayHead()){
   if(auto pos=play->getPosition())if(auto bpm=pos->getBpm())engine.setTempo(static_cast<float>(*bpm));
  }
@@ -74,11 +80,31 @@ void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Midi
  }
 }
 void RageForgeProcessor::getStateInformation(juce::MemoryBlock& dest){
- auto xml=state.copyState().createXml();copyXmlToBinary(*xml,dest);
+ auto snapshot=state.copyState();
+ juce::StringArray points;
+ for(int k=0;k<rage::Engine::waveSize;++k)
+   points.add(juce::String(userWave[(size_t)k].load(std::memory_order_relaxed),7));
+ snapshot.setProperty("userWave64",points.joinIntoString(","),nullptr);
+ auto xml=snapshot.createXml();copyXmlToBinary(*xml,dest);
 }
 void RageForgeProcessor::setStateInformation(const void* data,int bytes){
  std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data,bytes));
- if(xml && xml->hasTagName(state.state.getType()))state.replaceState(juce::ValueTree::fromXml(*xml));
+ if(xml && xml->hasTagName(state.state.getType())){
+   auto restored=juce::ValueTree::fromXml(*xml);
+   const auto list=juce::StringArray::fromTokens(restored.getProperty("userWave64").toString(),",","");
+   if(list.size()==rage::Engine::waveSize){
+     for(int k=0;k<rage::Engine::waveSize;++k)
+       setWavePoint(k,list[k].getFloatValue());
+   }
+   restored.removeProperty("userWave64",nullptr);
+   state.replaceState(restored);
+ }
+}
+void RageForgeProcessor::setWavePoint(int index,float value){
+ if(index>=0&&index<rage::Engine::waveSize)userWave[(size_t)index].store(rage::clamp(value,-1.f,1.f),std::memory_order_relaxed);
+}
+float RageForgeProcessor::getWavePoint(int index) const{
+ return index>=0&&index<rage::Engine::waveSize?userWave[(size_t)index].load(std::memory_order_relaxed):0.f;
 }
 void RageForgeProcessor::selectPreset(int index){
  // Sound-engine starting points, not mastered presets. Every parameter remains editable.
