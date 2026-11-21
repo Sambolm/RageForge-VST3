@@ -5,13 +5,19 @@ void RageForgeEditor::WaveDraw::paint(juce::Graphics& g){
  g.setColour(juce::Colour(0xff375a38));g.drawRoundedRectangle(r.reduced(.5f),5.f,1.f);
  g.setColour(juce::Colour(0xff274b25));
  g.drawHorizontalLine(getHeight()/2,5.f,(float)getWidth()-5.f);
- for(int i=1;i<8;++i)g.drawVerticalLine(getWidth()*i/8,4.f,(float)getHeight()-4.f);
+ for(int i=0;i<=8;++i){
+   const float x=5.f+(float)i/8.f*(getWidth()-10.f);
+   g.setColour(juce::Colour(i==selectedGrid||i==selectedGrid+8?0xff4e8f42:0xff274b25));
+   g.drawVerticalLine((int)x,4.f,(float)getHeight()-4.f);
+ }
  juce::Path p;
  for(int i=0;i<rage::Engine::waveSize;++i){
-  const float x=5.f+((float)i/(rage::Engine::waveSize-1))*(getWidth()-10.f);
+  const float x=5.f+((float)i/rage::Engine::waveSize)*(getWidth()-10.f);
   const float y=(getHeight()*.5f)-processor.getWavePoint(i)*(getHeight()*.5f-9.f);
   if(i==0)p.startNewSubPath(x,y);else p.lineTo(x,y);
  }
+ // Close the displayed cycle at the first sample, as the wavetable is periodic.
+ p.lineTo((float)getWidth()-5.f,getHeight()*.5f-processor.getWavePoint(0)*(getHeight()*.5f-9.f));
  // Dim raw points plus a bright warped output trace; both derive from real DSP parameters.
  g.setColour(juce::Colour(0x5576ff29));g.strokePath(p,juce::PathStrokeType(1.2f));
  const float warp=processor.state.getRawParameterValue("waveWarp")->load();
@@ -37,6 +43,22 @@ void RageForgeEditor::WaveDraw::paint(juce::Graphics& g){
    g.setColour(juce::Colour(0xffb5ff6a).withAlpha(.35f+.65f*blend));
    g.strokePath(output,juce::PathStrokeType(1.6f));
  }
+ // Grid handles are actual editable anchor samples, including the periodic endpoint.
+ {
+   juce::Graphics::ScopedSaveState clipped(g);
+   g.reduceClipRegion(r.reduced(3.f).getSmallestIntegerContainer());
+   for(int node=0;node<=8;++node){
+     const int tableIndex=(node%8)*8;
+     const float x=5.f+(float)node/8.f*(getWidth()-10.f);
+     const float y=getHeight()*.5f-processor.getWavePoint(tableIndex)*(getHeight()*.5f-9.f);
+     const bool selected=selectedGrid==node%8;
+     const float size=selected?5.0f:3.4f;
+     g.setColour(juce::Colour(0xff09130a));
+     g.fillEllipse(x-size-1.3f,y-size-1.3f,2.f*(size+1.3f),2.f*(size+1.3f));
+     g.setColour(selected?juce::Colour(0xfff0ffbb):juce::Colour(0xff76ff29));
+     g.fillEllipse(x-size,y-size,2.f*size,2.f*size);
+   }
+ }
  // Audio-driven single-cycle oscillator cursor. No simulated animation while silent.
  if(processor.isWavePlaying()){
    const float phase=juce::jlimit(0.f,1.f,processor.getWavePhase());
@@ -49,9 +71,9 @@ void RageForgeEditor::WaveDraw::paint(juce::Graphics& g){
    g.setColour(juce::Colour(0xffd8ff9b));g.fillPath(head);
  }
 }
-void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
- const float x=juce::jlimit(0.f,1.f,(e.position.x-5.f)/juce::jmax(1.f,(float)getWidth()-10.f));
- const float y=juce::jlimit(-1.f,1.f,(getHeight()*.5f-e.position.y)/juce::jmax(1.f,getHeight()*.5f-9.f));
+void RageForgeEditor::WaveDraw::editAt(juce::Point<float> point){
+ const float x=juce::jlimit(0.f,1.f,(point.x-5.f)/juce::jmax(1.f,(float)getWidth()-10.f));
+ const float y=juce::jlimit(-1.f,1.f,((float)getHeight()*.5f-point.y)/juce::jmax(1.f,(float)getHeight()*.5f-9.f));
  const int index=juce::jlimit(0,rage::Engine::waveSize-1,juce::roundToInt(x*(rage::Engine::waveSize-1)));
  if(lastIndex>=0&&lastIndex!=index){
    const int step=index>lastIndex?1:-1;
@@ -60,21 +82,70 @@ void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
      processor.setWavePoint(k,lastValue+(y-lastValue)*t);
    }
  }else processor.setWavePoint(index,y);
- lastIndex=index;lastValue=y;repaint();
+ lastIndex=index;lastValue=y;
+ repaint();
+ if(auto* parent=getParentComponent())parent->repaint();
+}
+void RageForgeEditor::WaveDraw::placeGridPoint(juce::Point<float> point){
+ // Clicking places a precise value on the nearest 1/8-cycle grid line.
+ // The two surrounding grid intervals are linearly joined for clean angular shapes.
+ const float x=juce::jlimit(0.f,1.f,(point.x-5.f)/juce::jmax(1.f,(float)getWidth()-10.f));
+ const float y=juce::jlimit(-1.f,1.f,((float)getHeight()*.5f-point.y)/juce::jmax(1.f,(float)getHeight()*.5f-9.f));
+ constexpr int gridLines=8;
+ constexpr int samplesPerGrid=rage::Engine::waveSize/gridLines;
+ const int grid=juce::roundToInt(x*gridLines)%gridLines;
+ const int center=grid*samplesPerGrid;
+ const int previous=((grid+gridLines-1)%gridLines)*samplesPerGrid;
+ const int next=((grid+1)%gridLines)*samplesPerGrid;
+ const float prevY=processor.getWavePoint(previous);
+ const float nextY=processor.getWavePoint(next);
+ processor.setWavePoint(center,y);
+ for(int sample=1;sample<samplesPerGrid;++sample){
+   const float fraction=(float)sample/(float)samplesPerGrid;
+   processor.setWavePoint((previous+sample)%rage::Engine::waveSize,
+                          prevY+(y-prevY)*fraction);
+   processor.setWavePoint((center+sample)%rage::Engine::waveSize,
+                          y+(nextY-y)*fraction);
+ }
+ selectedGrid=grid;
+ repaint();
  if(auto* parent=getParentComponent())parent->repaint();
 }
 void RageForgeEditor::WaveDraw::mouseDown(const juce::MouseEvent& e){
- // A freshly drawn waveform should be audible immediately.
+ // Click creates a snapped anchor; drag creates a freehand stroke.
+ // Delay changes until the gesture is known so a drag doesn't generate a sharp snap.
+ pointerDown=e.position;
+ isDragging=false;
+ skipClick=false;
+ lastIndex=-1;
  if(auto* blend=processor.state.getParameter("waveBlend"))
    if(blend->convertFrom0to1(blend->getValue())<.05f)
      blend->setValueNotifyingHost(blend->convertTo0to1(.85f));
- lastIndex=-1;edit(e);
 }
-void RageForgeEditor::WaveDraw::mouseDrag(const juce::MouseEvent& e){edit(e);}
+void RageForgeEditor::WaveDraw::mouseDrag(const juce::MouseEvent& e){
+ if(skipClick)return;
+ if(!isDragging && e.position.getDistanceFrom(pointerDown)>4.f){
+   isDragging=true;
+   selectedGrid=-1;
+   lastIndex=-1;
+   editAt(pointerDown);
+ }
+ if(isDragging)editAt(e.position);
+}
+void RageForgeEditor::WaveDraw::mouseUp(const juce::MouseEvent&){
+ if(!isDragging&&!skipClick)placeGridPoint(pointerDown);
+ lastIndex=-1;
+ isDragging=false;
+ skipClick=false;
+}
 void RageForgeEditor::WaveDraw::mouseDoubleClick(const juce::MouseEvent&){
+ // Restore the default shape, also clear the pending mouse-up point placement.
+ skipClick=true;
  for(int i=0;i<rage::Engine::waveSize;++i)
-  processor.setWavePoint(i,std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
- lastIndex=-1;repaint();
+   processor.setWavePoint(i,std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
+ selectedGrid=-1;
+ lastIndex=-1;
+ repaint();
  if(auto* parent=getParentComponent())parent->repaint();
 }
 void RageForgeEditor::NeonLookAndFeel::drawRotarySlider(juce::Graphics& g,int x,int y,int w,int h,float pos,float start,float end,juce::Slider& slider){
@@ -132,7 +203,7 @@ void RageForgeEditor::NeonLookAndFeel::drawLinearSlider(juce::Graphics& g,int x,
 RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p),waveDrawing(p){
  setLookAndFeel(&neon);
  addAndMakeVisible(waveDrawing);
- waveDrawing.setTooltip("Draw a periodic oscillator wave. Double-click to reset to sine.");
+ waveDrawing.setTooltip("Click to set clean grid points; drag to sketch freehand; double-click to reset sine.");
 
  brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions("Impact",53.f,juce::Font::bold)));
  brand.setColour(juce::Label::textColourId,juce::Colour(0xff76ff29));addAndMakeVisible(brand);
@@ -280,7 +351,7 @@ void RageForgeEditor::paint(juce::Graphics& g){
  module(764,140,294,192,"03   LFO CONTROLS");
  g.setColour(juce::Colour(0xffa1df8b));g.setFont(11.f);
  g.setColour(juce::Colour(0xffa1df8b));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
- g.drawText("DRAW WAVETABLE  /  DOUBLE CLICK TO RESET",39,177,265,17,juce::Justification::left);
+ g.drawText("CLICK GRID = CLEAN  /  DRAG = FREEHAND",39,177,265,17,juce::Justification::left);
  g.drawText("WAVE BLEND",40,267,95,24,juce::Justification::centredLeft);
  g.drawText("PHASE WARP",40,295,95,24,juce::Justification::centredLeft);
  const float morph=processor.state.getRawParameterValue("shape")->load();
