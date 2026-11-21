@@ -81,6 +81,20 @@ void RageForgeEditor::NeonLookAndFeel::drawComboBox(juce::Graphics& g,int width,
  g.setColour(juce::Colour(0xffb5ff6a));g.strokePath(arrow,juce::PathStrokeType(2.f));
  juce::ignoreUnused(box);
 }
+void RageForgeEditor::NeonLookAndFeel::drawLinearSlider(juce::Graphics& g,int x,int y,int w,int h,
+ float sliderPos,float,float,juce::Slider::SliderStyle,juce::Slider& slider){
+  const float cy=y+h*.5f;
+  const auto range=juce::Rectangle<float>((float)x+7.f,cy-4.f,(float)w-14.f,8.f);
+  g.setColour(juce::Colour(0xff101f13));g.fillRoundedRectangle(range,4.f);
+  g.setColour(juce::Colour(0xff345936));g.drawRoundedRectangle(range,4.f,1.f);
+  const float amount=juce::jlimit(0.f,1.f,(sliderPos-(x+7.f))/juce::jmax(1.f,w-14.f));
+  g.setColour(juce::Colour(0x4476ff29));g.fillRoundedRectangle(range.getX(),range.getY(),range.getWidth()*amount,range.getHeight(),4.f);
+  g.setColour(juce::Colour(0xff76ff29));g.fillRoundedRectangle(range.getX(),range.getY()+2.f,range.getWidth()*amount,4.f,2.f);
+  const float hx=juce::jlimit(range.getX(),range.getRight(),sliderPos);
+  g.setColour(juce::Colour(0xffb5ff6a));g.fillEllipse(hx-7.f,cy-7.f,14.f,14.f);
+  g.setColour(juce::Colour(0xff061006));g.drawEllipse(hx-7.f,cy-7.f,14.f,14.f,1.f);
+  juce::ignoreUnused(slider);
+}
 RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p),waveDrawing(p){
  setLookAndFeel(&neon);
  addAndMakeVisible(waveDrawing);
@@ -152,14 +166,31 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  for(auto* slider:{&waveBlendSlider,&waveWarpSlider}){
   slider->setSliderStyle(juce::Slider::LinearHorizontal);
   slider->setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
+  slider->setSliderSnapsToMousePosition(true);
+  slider->setMouseDragSensitivity(160);
   slider->setColour(juce::Slider::trackColourId,juce::Colour(0xff76ff29));
   slider->setColour(juce::Slider::thumbColourId,juce::Colour(0xffb5ff6a));
   addAndMakeVisible(*slider);
+ }
+ for(auto* value:{&waveBlendValue,&waveWarpValue}){
+   value->setJustificationType(juce::Justification::centredRight);
+   value->setColour(juce::Label::textColourId,juce::Colour(0xffb5ff6a));
+   value->setFont(juce::Font(juce::FontOptions(12.f,juce::Font::bold)));
+   addAndMakeVisible(*value);
  }
  waveBlendSlider.setTooltip("Blend your drawn waveform into Oscillator 1.");
  waveWarpSlider.setTooltip("Warp the custom wavetable's phase for new harmonics.");
  waveBlendAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,"waveBlend",waveBlendSlider);
  waveWarpAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,"waveWarp",waveWarpSlider);
+ // Attachments now own the parameter range. Update visuals after they exist.
+ const auto updateWaveSliders=[this]{
+   waveBlendValue.setText(juce::String(waveBlendSlider.getValue(),2),juce::dontSendNotification);
+   waveWarpValue.setText(juce::String(waveWarpSlider.getValue(),2),juce::dontSendNotification);
+   repaint();
+ };
+ waveBlendSlider.onValueChange=updateWaveSliders;
+ waveWarpSlider.onValueChange=updateWaveSliders;
+ updateWaveSliders();
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
  neon.setColour(juce::ComboBox::textColourId,juce::Colour(0xffeaffd9));
  neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff0d180f));
@@ -207,8 +238,8 @@ void RageForgeEditor::paint(juce::Graphics& g){
  g.setColour(juce::Colour(0xffa1df8b));g.setFont(11.f);
  g.setColour(juce::Colour(0xffa1df8b));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
  g.drawText("DRAW WAVETABLE  /  DOUBLE CLICK TO RESET",39,177,265,17,juce::Justification::left);
- g.drawText("WAVE BLEND",40,271,95,19,juce::Justification::centredLeft);
- g.drawText("PHASE WARP",40,297,95,19,juce::Justification::centredLeft);
+ g.drawText("WAVE BLEND",40,267,95,24,juce::Justification::centredLeft);
+ g.drawText("PHASE WARP",40,295,95,24,juce::Justification::centredLeft);
  const float morph=processor.state.getRawParameterValue("shape")->load();
  const float fm=processor.state.getRawParameterValue("fm")->load();
  const float detune=processor.state.getRawParameterValue("detune")->load();
@@ -317,9 +348,13 @@ void RageForgeEditor::resized(){
      juce::jmax(1,juce::roundToInt(w*scale)),juce::jmax(1,juce::roundToInt(h*scale)));
  };
  brand.setBounds(scaled(26,14,620,69));
- waveDrawing.setBounds(scaled(39,194,260,74));
- waveBlendSlider.setBounds(scaled(135,272,160,18));
- waveWarpSlider.setBounds(scaled(135,298,160,18));
+ waveDrawing.setBounds(scaled(39,194,260,69));
+ waveBlendSlider.setBounds(scaled(131,265,124,27));
+ waveWarpSlider.setBounds(scaled(131,294,124,27));
+ waveBlendValue.setBounds(scaled(256,265,45,27));
+ waveWarpValue.setBounds(scaled(256,294,45,27));
+ waveBlendValue.setFont(juce::Font(juce::FontOptions(juce::jmax(9.f,12.f*scale),juce::Font::bold)));
+ waveWarpValue.setFont(juce::Font(juce::FontOptions(juce::jmax(9.f,12.f*scale),juce::Font::bold)));
  tagline.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,13.f*scale))));
  tagline.setBounds(scaled(39,81,680,20));
  preset.setBounds(scaled(787,25,257,38));
