@@ -12,8 +12,31 @@ void RageForgeEditor::WaveDraw::paint(juce::Graphics& g){
   const float y=(getHeight()*.5f)-processor.getWavePoint(i)*(getHeight()*.5f-9.f);
   if(i==0)p.startNewSubPath(x,y);else p.lineTo(x,y);
  }
- g.setColour(juce::Colour(0x5076ff29));g.strokePath(p,juce::PathStrokeType(5.f));
- g.setColour(juce::Colour(0xffb5ff6a));g.strokePath(p,juce::PathStrokeType(1.6f));
+ // Dim raw points plus a bright warped output trace; both derive from real DSP parameters.
+ g.setColour(juce::Colour(0x5576ff29));g.strokePath(p,juce::PathStrokeType(1.2f));
+ const float warp=processor.state.getRawParameterValue("waveWarp")->load();
+ const float blend=processor.state.getRawParameterValue("waveBlend")->load();
+ juce::Path output;
+ for(int i=0;i<256;++i){
+   const float phase=(float)i/255.f;
+   const float warped=rage::fract(phase+warp*.18f*std::sin(2.f*rage::pi*phase));
+   const float table=warped*(float)rage::Engine::waveSize;
+   const int n=(int)table;
+   const float fraction=table-(float)n;
+   const float v=processor.getWavePoint(n%rage::Engine::waveSize)*(1.f-fraction)
+      +processor.getWavePoint((n+1)%rage::Engine::waveSize)*fraction;
+   const float x=5.f+phase*(getWidth()-10.f);
+   const float y=getHeight()*.5f-v*(getHeight()*.5f-9.f);
+   if(i==0)output.startNewSubPath(x,y);else output.lineTo(x,y);
+ }
+ {
+   juce::Graphics::ScopedSaveState clipped(g);
+   g.reduceClipRegion(r.reduced(5.f).getSmallestIntegerContainer());
+   g.setColour(juce::Colour(0xff76ff29).withAlpha(.12f+.24f*blend));
+   g.strokePath(output,juce::PathStrokeType(5.f));
+   g.setColour(juce::Colour(0xffb5ff6a).withAlpha(.35f+.65f*blend));
+   g.strokePath(output,juce::PathStrokeType(1.6f));
+ }
 }
 void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
  const float x=juce::jlimit(0.f,1.f,(e.position.x-5.f)/juce::jmax(1.f,(float)getWidth()-10.f));
