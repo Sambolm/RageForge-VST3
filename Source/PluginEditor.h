@@ -4,9 +4,15 @@
 class RageForgeEditor final : public juce::AudioProcessorEditor {
 public:
  explicit RageForgeEditor(RageForgeProcessor&);
+ ~RageForgeEditor() override;
  void paint(juce::Graphics&) override;
  void resized() override;
 private:
+ class NeonLookAndFeel final : public juce::LookAndFeel_V4 {
+ public:
+  void drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
+  void drawComboBox(juce::Graphics&, int, int, bool, int, int, int, int, juce::ComboBox&) override;
+ } neon;
  RageForgeProcessor& processor;
  juce::ComboBox preset;
  juce::ComboBox lfoDivision, lfoShape;
