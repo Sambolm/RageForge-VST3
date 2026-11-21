@@ -13,7 +13,7 @@ else()
 endif()
 
 juce_add_plugin(RageForge
- COMPANY_NAME "Eternatones Productions"
+ COMPANY_NAME "Sik Rage Productions"
  BUNDLE_ID "com.eternatones.rageforge"
  PLUGIN_MANUFACTURER_CODE Etns
  PLUGIN_CODE RgF1
