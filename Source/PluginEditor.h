@@ -14,7 +14,7 @@ private:
   void drawComboBox(juce::Graphics&, int, int, bool, int, int, int, int, juce::ComboBox&) override;
  } neon;
  RageForgeProcessor& processor;
- class WaveDraw final : public juce::Component {
+ class WaveDraw final : public juce::Component, public juce::SettableTooltipClient {
  public:
   explicit WaveDraw(RageForgeProcessor& p):processor(p){}
   void paint(juce::Graphics&) override;
