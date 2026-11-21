@@ -18,7 +18,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"resonance","Resonance",0,.94,.18);
  add(l,"vowel","Vocal Formant",0,1,.45);
  add(l,"movement","Movement",0,1,.55);
- add(l,"rate","LFO Rate (Beats)",.125,16,2,2);
+ // Keep the old rate parameter so existing saved projects still load.
+ add(l,"rate","Legacy LFO Rate",.125,16,2,2);
+ l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("lfoDivision",1),"LFO Sync",juce::StringArray{"1/32","1/16","1/8","1/4","1/2","1 BAR","2 BARS"},3));
+ l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("lfoShape",1),"LFO Shape",juce::StringArray{"Sine","Triangle","Saw Up","Saw Down","Square"},0));
  add(l,"drive","Drive",0,1,.50);
  add(l,"attack","Attack",.001,1,.005,.08);
  add(l,"decay","Decay",.02,2,.17,.3);
@@ -39,7 +42,10 @@ void RageForgeProcessor::syncParameters(){
  auto &p=engine.p;
  p.shape=val("shape");p.fm=val("fm");p.detune=val("detune");p.sub=val("sub");
  p.cutoff=val("cutoff");p.resonance=val("resonance");p.vowel=val("vowel");
- p.movement=val("movement");p.rate=val("rate");p.drive=val("drive");
+ p.movement=val("movement");p.rate=val("rate");
+ p.lfoDivision=juce::jlimit(0,6,static_cast<int>(val("lfoDivision")));
+ p.lfoShape=juce::jlimit(0,4,static_cast<int>(val("lfoShape")));
+ p.drive=val("drive");
  p.attack=val("attack");p.decay=val("decay");p.sustain=val("sustain");p.release=val("release");
  p.stereo=val("stereo");p.mix=val("mix");p.glide=val("glide");p.level=val("level");p.mono=val("mono")>.5f;
 }
@@ -86,7 +92,9 @@ void RageForgeProcessor::selectPreset(int index){
   {"shape",v.sh},{"fm",v.fm},{"detune",v.det},{"sub",v.sub},{"cutoff",v.cut},{"resonance",v.res},
   {"vowel",v.vow},{"movement",v.mov},{"rate",v.rate},{"drive",v.drive},{"attack",v.a},
   {"decay",v.d},{"sustain",v.s},{"release",v.r},{"stereo",v.spread},{"mix",v.mix},
-  {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f}
+  {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f},
+  {"lfoDivision", static_cast<float>(std::array<int,8>{3,3,2,5,1,4,1,5}[static_cast<size_t>(juce::jlimit(0,7,index))])},
+  {"lfoShape", static_cast<float>(std::array<int,8>{4,0,2,1,4,1,3,0}[static_cast<size_t>(juce::jlimit(0,7,index))])}
  };
  for(auto [id,value]:values){auto* par=state.getParameter(id);par->setValueNotifyingHost(par->convertTo0to1(value));}
 }
