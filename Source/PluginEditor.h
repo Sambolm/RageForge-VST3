@@ -23,11 +23,16 @@ private:
   void paint(juce::Graphics&) override;
   void mouseDown(const juce::MouseEvent&) override;
   void mouseDrag(const juce::MouseEvent&) override;
+  void mouseUp(const juce::MouseEvent&) override;
   void mouseDoubleClick(const juce::MouseEvent&) override;
  private:
   RageForgeProcessor& processor;
-  int lastIndex=-1;float lastValue=0.f;
-  void edit(const juce::MouseEvent&);
+  int lastIndex=-1,selectedGrid=-1;
+  float lastValue=0.f;
+  juce::Point<float> pointerDown{};
+  bool isDragging=false,skipClick=false;
+  void editAt(juce::Point<float>);
+  void placeGridPoint(juce::Point<float>);
  };
  WaveDraw waveDrawing;
  juce::Slider waveBlendSlider,waveWarpSlider;
