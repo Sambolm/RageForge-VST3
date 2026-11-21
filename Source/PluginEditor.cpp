@@ -100,6 +100,9 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  }
  divisionAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"lfoDivision",lfoDivision);
  shapeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"lfoShape",lfoShape);
+ // The DSP already uses these settings; the visualization must follow them too.
+ lfoDivision.onChange=[this]{repaint();};
+ lfoShape.onChange=[this]{repaint();};
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
  neon.setColour(juce::ComboBox::textColourId,juce::Colour(0xffeaffd9));
  neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff0d180f));
@@ -181,13 +184,32 @@ void RageForgeEditor::paint(juce::Graphics& g){
  g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.8f));
  g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
  g.drawText("MORPHING WAVEFORM  //  LIVE PARAMETERS",353,316,345,13,juce::Justification::left);
- g.setColour(lime.withAlpha(.2f));g.drawRoundedRectangle(780.f,188.f,264.f,127.f,6.f,1.f);
- juce::Path lfo;
- for(int i=0;i<240;++i){
-  float t=(float)i/240.f,y=std::sin(t*juce::MathConstants<float>::twoPi*2.f);
-  if(i==0)lfo.startNewSubPath(790.f,292.f-y*13.f);else lfo.lineTo(790.f+i,292.f-y*13.f);
+ // One displayed bar (4 beats): the chosen division controls cycle count,
+ // and the chosen shape uses precisely the same transfer function as audio DSP.
+ const auto graph=juce::Rectangle<float>(782.f,255.f,258.f,59.f);
+ g.setColour(juce::Colour(0xff020902));g.fillRoundedRectangle(graph,5.f);
+ g.setColour(lime.withAlpha(.24f));g.drawRoundedRectangle(graph,5.f,1.f);
+ const auto division=juce::jlimit(0,6,(int)processor.state.getRawParameterValue("lfoDivision")->load());
+ const auto shape=juce::jlimit(0,4,(int)processor.state.getRawParameterValue("lfoShape")->load());
+ const float cyclesPerBar=4.f/rage::lfoBeatsPerCycle(division);
+ const float gx=graph.getX()+6.f,gy=graph.getY()+6.f;
+ const float gw=graph.getWidth()-12.f,gh=graph.getHeight()-12.f;
+ g.setColour(lime.withAlpha(.12f));
+ for(int j=1;j<4;++j)g.drawVerticalLine((int)(gx+j*gw/4.f),gy,gy+gh);
+ g.drawHorizontalLine((int)(gy+gh/2.f),gx,gx+gw);
+ juce::Path lfoWave;
+ const int sampleCount=490;
+ for(int i=0;i<=sampleCount;++i){
+  const float t=(float)i/(float)sampleCount;
+  const float phase=rage::fract(t*cyclesPerBar);
+  const float value=rage::lfoValue(phase,shape);
+  const float x=gx+t*gw,y=gy+(1.f-value)*gh;
+  if(i==0)lfoWave.startNewSubPath(x,y);else lfoWave.lineTo(x,y);
  }
- g.setColour(glow.withAlpha(.5f));g.strokePath(lfo,juce::PathStrokeType(1.5f));
+ g.setColour(lime.withAlpha(.20f));g.strokePath(lfoWave,juce::PathStrokeType(6.f));
+ g.setColour(glow);g.strokePath(lfoWave,juce::PathStrokeType(1.7f));
+ g.setColour(glow.withAlpha(.8f));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+ g.drawText("LFO PREVIEW  /  ONE BAR",789,244,241,12,juce::Justification::centredLeft);
  const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
                       "MOVEMENT  /  FILTER & ENVELOPES",
                       "FINAL SHAPE  /  MIX & OUTPUT"};
