@@ -37,6 +37,17 @@ void RageForgeEditor::WaveDraw::paint(juce::Graphics& g){
    g.setColour(juce::Colour(0xffb5ff6a).withAlpha(.35f+.65f*blend));
    g.strokePath(output,juce::PathStrokeType(1.6f));
  }
+ // Audio-driven single-cycle oscillator cursor. No simulated animation while silent.
+ if(processor.isWavePlaying()){
+   const float phase=juce::jlimit(0.f,1.f,processor.getWavePhase());
+   const float x=5.f+phase*(getWidth()-10.f);
+   juce::Graphics::ScopedSaveState clipped(g);
+   g.reduceClipRegion(r.reduced(3.f).getSmallestIntegerContainer());
+   g.setColour(juce::Colour(0x5476ff29));g.drawLine(x-2.f,5.f,x-2.f,(float)getHeight()-5.f,4.f);
+   g.setColour(juce::Colour(0xffd8ff9b));g.drawLine(x,5.f,x,(float)getHeight()-5.f,1.6f);
+   juce::Path head;head.addTriangle(x-5.f,5.f,x+5.f,5.f,x,12.f);
+   g.setColour(juce::Colour(0xffd8ff9b));g.fillPath(head);
+ }
 }
 void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
  const float x=juce::jlimit(0.f,1.f,(e.position.x-5.f)/juce::jmax(1.f,(float)getWidth()-10.f));
@@ -223,8 +234,17 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  setResizable(true,true);
  setResizeLimits(740,548,1450,1074);
  setSize(890,659);
+ startTimerHz(30); // UI-only refresh; no timer or drawing code runs on the audio thread.
 }
-RageForgeEditor::~RageForgeEditor(){setLookAndFeel(nullptr);}
+RageForgeEditor::~RageForgeEditor(){stopTimer();setLookAndFeel(nullptr);}
+void RageForgeEditor::timerCallback(){
+ const bool active=processor.isWavePlaying();
+ if(active || playheadPreviouslyVisible){
+   waveDrawing.repaint();
+   repaint();
+ }
+ playheadPreviouslyVisible=active;
+}
 void RageForgeEditor::paint(juce::Graphics& g){
  const auto lime=juce::Colour(0xff76ff29), glow=juce::Colour(0xffb5ff6a);
  const auto bg=juce::Colour(0xff050905);
@@ -302,6 +322,13 @@ void RageForgeEditor::paint(juce::Graphics& g){
    g.setColour(lime.withAlpha(.12f));g.strokePath(waveform,juce::PathStrokeType(5.f));
    g.setColour(lime.withAlpha(.5f));g.strokePath(waveform,juce::PathStrokeType(3.f));
    g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.4f));
+   // Eight-cycle progress cursor, sourced from the actual active oscillator.
+   if(processor.isWavePlaying()){
+     const float x=scope.getX()+7.f
+       +juce::jlimit(0.f,1.f,processor.getWaveScopeProgress())*(scope.getWidth()-14.f);
+     g.setColour(glow.withAlpha(.24f));g.drawLine(x-2.f,scope.getY()+6.f,x-2.f,scope.getBottom()-6.f,5.f);
+     g.setColour(juce::Colour(0xffe1ffae));g.drawLine(x,scope.getY()+6.f,x,scope.getBottom()-6.f,1.4f);
+   }
  }
  g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
  g.drawText("OSCILLATORS  //  DRAWN WAVE + FM PREVIEW",353,305,345,16,juce::Justification::left);
