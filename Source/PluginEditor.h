@@ -1,13 +1,14 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-class RageForgeEditor final : public juce::AudioProcessorEditor {
+class RageForgeEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
  explicit RageForgeEditor(RageForgeProcessor&);
  ~RageForgeEditor() override;
  void paint(juce::Graphics&) override;
  void resized() override;
 private:
+ void timerCallback() override;
  class NeonLookAndFeel final : public juce::LookAndFeel_V4 {
  public:
   void drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
