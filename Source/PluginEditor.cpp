@@ -40,7 +40,7 @@ void RageForgeEditor::NeonLookAndFeel::drawComboBox(juce::Graphics& g,int width,
 RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&neon);
 
- brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions(53.f,juce::Font::bold)));
+ brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions("Impact",53.f,juce::Font::bold)));
  brand.setColour(juce::Label::textColourId,juce::Colour(0xff76ff29));addAndMakeVisible(brand);
  tagline.setText("DUBSTEP BASS SYNTHESIZER  //  ETERNATONES",juce::dontSendNotification);tagline.setFont(juce::Font(juce::FontOptions(13.f)));
  tagline.setColour(juce::Label::textColourId,juce::Colour(0xffb5ff6a));addAndMakeVisible(tagline);
@@ -101,16 +101,24 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff0d180f));
  neon.setColour(juce::PopupMenu::textColourId,juce::Colour(0xffeaffd9));
  // Size the editor only AFTER all controls exist, so resized() positions every knob.
- for(auto &k:knobs) k->slider.onValueChange=[this]{repaint(329,140,422,192);};
- setSize(1080,800);
+ for(auto &k:knobs) k->slider.onValueChange=[this]{repaint();};
+ setResizable(true,true);
+ setResizeLimits(740,548,1450,1074);
+ setSize(890,659);
 }
 RageForgeEditor::~RageForgeEditor(){setLookAndFeel(nullptr);}
 void RageForgeEditor::paint(juce::Graphics& g){
  const auto lime=juce::Colour(0xff76ff29), glow=juce::Colour(0xffb5ff6a);
  const auto bg=juce::Colour(0xff050905);
  g.fillAll(bg);
+ // Draw on a 1080x800 virtual canvas, fitted to the actual plugin window.
+ // FL Studio can now resize RageForge without hiding its bottom row.
+ const float scale=juce::jmin((float)getWidth()/1080.f,(float)getHeight()/800.f);
+ const float ox=((float)getWidth()-1080.f*scale)*.5f;
+ const float oy=((float)getHeight()-800.f*scale)*.5f;
+ g.addTransform(juce::AffineTransform::scale(scale).translated(ox,oy));
  juce::ColourGradient background(juce::Colour(0xff152416),540.f,0.f,bg,540.f,800.f,false);
- g.setGradientFill(background);g.fillRect(getLocalBounds());
+ g.setGradientFill(background);g.fillRect(0,0,1080,800);
  // Slanted industrial header and electric-green masthead.
  juce::Path header;
  header.startNewSubPath(0.f,0.f);header.lineTo(1080.f,0.f);header.lineTo(1080.f,107.f);
@@ -194,19 +202,28 @@ void RageForgeEditor::paint(juce::Graphics& g){
  g.setColour(lime);g.drawText("VST3  /  4X OVERSAMPLING",806,770,242,20,juce::Justification::centredRight);
 }
 void RageForgeEditor::resized(){
- brand.setBounds(36,18,500,62);
- tagline.setBounds(38,79,560,20);
- preset.setBounds(787,25,257,38);
- subtitle.setBounds(787,70,267,23);
+ // Match the scalable painted reference. All JUCE child controls stay live.
+ const float scale=juce::jmin((float)getWidth()/1080.f,(float)getHeight()/800.f);
+ const float ox=((float)getWidth()-1080.f*scale)*.5f;
+ const float oy=((float)getHeight()-800.f*scale)*.5f;
+ const auto scaled=[=](int x,int y,int w,int h){
+   return juce::Rectangle<int>(
+     juce::roundToInt(ox+x*scale),juce::roundToInt(oy+y*scale),
+     juce::jmax(1,juce::roundToInt(w*scale)),juce::jmax(1,juce::roundToInt(h*scale)));
+ };
+ brand.setBounds(scaled(36,18,500,62));
+ tagline.setBounds(scaled(38,79,560,20));
+ preset.setBounds(scaled(787,25,257,38));
+ subtitle.setBounds(scaled(787,70,267,23));
  for(size_t i=0;i<knobs.size();++i){
    int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
    int x=25+col*172,y=376+row*134;
-   knobs[i]->label.setBounds(x,y,165,19);
-   knobs[i]->slider.setBounds(x+20,y+17,128,91);
+   knobs[i]->label.setBounds(scaled(x,y,165,19));
+   knobs[i]->slider.setBounds(scaled(x+20,y+17,128,91));
  }
- lfoDivisionLabel.setBounds(781,201,120,16);
- lfoDivision.setBounds(782,217,120,28);
- lfoShapeLabel.setBounds(911,201,123,16);
- lfoShape.setBounds(910,217,125,28);
- mono.setBounds(820,299,206,24);
+ lfoDivisionLabel.setBounds(scaled(781,201,120,16));
+ lfoDivision.setBounds(scaled(782,217,120,28));
+ lfoShapeLabel.setBounds(scaled(911,201,123,16));
+ lfoShape.setBounds(scaled(910,217,125,28));
+ mono.setBounds(scaled(820,299,206,24));
 }
