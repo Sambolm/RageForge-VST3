@@ -35,6 +35,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"mix","Wet Mix",0,1,.95);
  add(l,"glide","Portamento",0,1,0,.15);
  add(l,"level","Output Level",0,1,.50);
+ add(l,"headroom","Headroom (dB)",0,18,3);
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
  return l;
 }
@@ -51,7 +52,8 @@ void RageForgeProcessor::syncParameters(){
  p.lfoShape=juce::jlimit(0,4,static_cast<int>(val("lfoShape")));
  p.drive=val("drive");
  p.attack=val("attack");p.decay=val("decay");p.sustain=val("sustain");p.release=val("release");
- p.stereo=val("stereo");p.mix=val("mix");p.glide=val("glide");p.level=val("level");p.mono=val("mono")>.5f;
+ p.stereo=val("stereo");p.mix=val("mix");p.glide=val("glide");p.level=val("level");
+ p.headroomDb=val("headroom");p.mono=val("mono")>.5f;
 }
 void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
  juce::ScopedNoDenormals denormals;
