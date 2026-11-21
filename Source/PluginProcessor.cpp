@@ -5,7 +5,11 @@
 namespace {
 void add(juce::AudioProcessorValueTreeState::ParameterLayout& l,const char* id,const char* name,float mn,float mx,float init,float skew=1.f){
  auto range=juce::NormalisableRange<float>(mn,mx);range.setSkewForCentre(skew==1.f?(mn+mx)*.5f:skew);
- l.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID(id,1),name,range,init));
+ // APVTS SliderAttachment uses AudioParameterFloat::getText for display.
+ const auto attrs=juce::AudioParameterFloatAttributes()
+   .withStringFromValueFunction([](float value,int){return juce::String(value,2);})
+   .withValueFromStringFunction([](const juce::String& value){return value.getFloatValue();});
+ l.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID(id,1),name,range,init,attrs));
 }
 }
 juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLayout(){
