@@ -161,14 +161,18 @@ void RageForgeEditor::paint(juce::Graphics& g){
      const float xx=r.getX()+10.f+(float)i,yy=r.getCentreY()-val*13.f;
      if(i==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);
    }
-   g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.8f));
+   {
+     juce::Graphics::ScopedSaveState clip(g);
+     g.reduceClipRegion(r.reduced(3.f).getSmallestIntegerContainer());
+     g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.8f));
+   }
  }
  // The oscilloscope is a visual preview driven by morph/FM/movement parameters.
  const auto scope=juce::Rectangle<float>(345.f,184.f,390.f,116.f);
  g.setColour(juce::Colour(0xff020802));g.fillRoundedRectangle(scope,6.f);
  g.setColour(lime.withAlpha(.13f));
- for(int i=1;i<10;++i){float x=scope.getX()+scope.getWidth()*i/10.f;g.drawVerticalLine((int)x,scope.getY(),scope.getBottom());}
- for(int i=1;i<4;++i){float y=scope.getY()+scope.getHeight()*i/4.f;g.drawHorizontalLine((int)y,scope.getX(),scope.getRight());}
+ for(int i=1;i<10;++i){float x=scope.getX()+scope.getWidth()*i/10.f;g.drawVerticalLine((int)x,scope.getY()+3.f,scope.getBottom()-3.f);}
+ for(int i=1;i<4;++i){float y=scope.getY()+scope.getHeight()*i/4.f;g.drawHorizontalLine((int)y,scope.getX()+3.f,scope.getRight()-3.f);}
  const float morph=processor.state.getRawParameterValue("shape")->load();
  const float fm=processor.state.getRawParameterValue("fm")->load();
  const float move=processor.state.getRawParameterValue("movement")->load();
@@ -179,37 +183,53 @@ void RageForgeEditor::paint(juce::Graphics& g){
    float x=scope.getX()+7.f+(float)i,y=scope.getCentreY()-value*43.f;
    if(i==0)waveform.startNewSubPath(x,y);else waveform.lineTo(x,y);
  }
- g.setColour(lime.withAlpha(.18f));g.strokePath(waveform,juce::PathStrokeType(8.f));
- g.setColour(lime.withAlpha(.5f));g.strokePath(waveform,juce::PathStrokeType(4.f));
- g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.8f));
+ {
+   juce::Graphics::ScopedSaveState clip(g);
+   g.reduceClipRegion(scope.reduced(6.f).getSmallestIntegerContainer());
+   g.setColour(lime.withAlpha(.12f));g.strokePath(waveform,juce::PathStrokeType(5.f));
+   g.setColour(lime.withAlpha(.5f));g.strokePath(waveform,juce::PathStrokeType(3.f));
+   g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.4f));
+ }
  g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
  g.drawText("MORPHING WAVEFORM  //  PARAMETER PREVIEW",353,305,345,16,juce::Justification::left);
- // One displayed bar (4 beats): the chosen division controls cycle count,
- // and the chosen shape uses precisely the same transfer function as audio DSP.
- const auto graph=juce::Rectangle<float>(782.f,255.f,258.f,59.f);
+ // LFO monitor: constrain all drawing INSIDE the monitor viewport.
+ // Rapid rates show one beat instead of 32 overlapping cycles in a single bar.
+ const auto graph=juce::Rectangle<float>(783.f,258.f,256.f,52.f);
  g.setColour(juce::Colour(0xff020902));g.fillRoundedRectangle(graph,5.f);
- g.setColour(lime.withAlpha(.24f));g.drawRoundedRectangle(graph,5.f,1.f);
+ g.setColour(lime.withAlpha(.30f));g.drawRoundedRectangle(graph,5.f,1.f);
  const auto division=juce::jlimit(0,6,(int)processor.state.getRawParameterValue("lfoDivision")->load());
  const auto shape=juce::jlimit(0,4,(int)processor.state.getRawParameterValue("lfoShape")->load());
- const float cyclesPerBar=4.f/rage::lfoBeatsPerCycle(division);
- const float gx=graph.getX()+6.f,gy=graph.getY()+6.f;
- const float gw=graph.getWidth()-12.f,gh=graph.getHeight()-12.f;
- g.setColour(lime.withAlpha(.12f));
- for(int j=1;j<4;++j)g.drawVerticalLine((int)(gx+j*gw/4.f),gy,gy+gh);
- g.drawHorizontalLine((int)(gy+gh/2.f),gx,gx+gw);
- juce::Path lfoWave;
- const int sampleCount=490;
- for(int i=0;i<=sampleCount;++i){
-  const float t=(float)i/(float)sampleCount;
-  const float phase=rage::fract(t*cyclesPerBar);
-  const float value=rage::lfoValue(phase,shape);
-  const float x=gx+t*gw,y=gy+(1.f-value)*gh;
-  if(i==0)lfoWave.startNewSubPath(x,y);else lfoWave.lineTo(x,y);
+ const float beatsPerCycle=rage::lfoBeatsPerCycle(division);
+ const bool zoomToBeat=beatsPerCycle<.5f; // 1/32 and 1/16
+ const float previewBeats=zoomToBeat?1.f:4.f;
+ const float cycleCount=previewBeats/beatsPerCycle;
+ const auto inside=graph.reduced(7.f);
+ const float gx=inside.getX(), gy=inside.getY();
+ const float gw=inside.getWidth(), gh=inside.getHeight();
+ {
+   juce::Graphics::ScopedSaveState clip(g);
+   g.reduceClipRegion(graph.reduced(4.f).getSmallestIntegerContainer());
+   g.setColour(lime.withAlpha(.13f));
+   for(int j=1;j<4;++j)
+     g.drawVerticalLine((int)(gx+j*gw/4.f),gy,gy+gh);
+   g.drawHorizontalLine((int)(gy+gh*.5f),gx,gx+gw);
+   juce::Path trace;
+   const int segments=juce::jmax(300,(int)(cycleCount*64.f));
+   for(int i=0;i<=segments;++i){
+     const float t=(float)i/(float)segments;
+     const float phase=rage::fract(t*cycleCount);
+     const float value=rage::lfoValue(phase,shape);
+     const float x=gx+t*gw;
+     // Leave 3px clearance for the trace and its antialiased stroke.
+     const float y=gy+3.f+(1.f-value)*(gh-6.f);
+     if(i==0)trace.startNewSubPath(x,y);else trace.lineTo(x,y);
+   }
+   // Avoid the old thick blurred ribbon, which made fast waves appear to overflow.
+   g.setColour(lime.withAlpha(.30f));g.strokePath(trace,juce::PathStrokeType(3.f));
+   g.setColour(glow);g.strokePath(trace,juce::PathStrokeType(1.25f));
  }
- g.setColour(lime.withAlpha(.20f));g.strokePath(lfoWave,juce::PathStrokeType(6.f));
- g.setColour(glow);g.strokePath(lfoWave,juce::PathStrokeType(1.7f));
- g.setColour(glow.withAlpha(.8f));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
- g.drawText("LFO PREVIEW  /  ONE BAR",789,244,241,12,juce::Justification::centredLeft);
+ g.setColour(glow.withAlpha(.9f));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+ g.drawText(zoomToBeat?"LFO PREVIEW  /  ONE BEAT":"LFO PREVIEW  /  ONE BAR",789,244,244,12,juce::Justification::centredLeft);
  const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
                       "MOVEMENT  /  FILTER & ENVELOPES",
                       "FINAL SHAPE  /  MIX & OUTPUT"};
