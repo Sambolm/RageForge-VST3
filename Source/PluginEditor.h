@@ -9,6 +9,7 @@ public:
  void resized() override;
 private:
  void timerCallback() override;
+ bool playheadPreviouslyVisible=false;
  class NeonLookAndFeel final : public juce::LookAndFeel_V4 {
  public:
   void drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
