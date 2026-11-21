@@ -42,13 +42,13 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
 
  brand.setText("RAGEFORGE",juce::dontSendNotification);brand.setFont(juce::Font(juce::FontOptions("Impact",53.f,juce::Font::bold)));
  brand.setColour(juce::Label::textColourId,juce::Colour(0xff76ff29));addAndMakeVisible(brand);
- tagline.setText("DUBSTEP BASS SYNTHESIZER  //  ETERNATONES",juce::dontSendNotification);tagline.setFont(juce::Font(juce::FontOptions(13.f)));
+ tagline.setText("DUBSTEP BASS SYNTHESIZER  //  SIK RAGE PRODUCTIONS",juce::dontSendNotification);tagline.setFont(juce::Font(juce::FontOptions(13.f)));
  tagline.setColour(juce::Label::textColourId,juce::Colour(0xffb5ff6a));addAndMakeVisible(tagline);
  subtitle.setText("WAVETABLE  /  FM  /  FORMANT  /  SUB",juce::dontSendNotification);
  subtitle.setColour(juce::Label::textColourId,juce::Colour(0xffb5dbaa));addAndMakeVisible(subtitle);
  const char* names[]={"Impact Stab","Talking Monster","Cyber Metal","Void Reese","Riddim Chop","Liquid Growl","Laser Shot","Sub Engine"};
  for(int i=0;i<8;++i)preset.addItem(names[i],i+1);
- preset.setTextWhenNothingSelected("LOAD STARTING PATCH");
+ preset.setTextWhenNothingSelected("SELECT BASS PRESET");
  preset.onChange=[this]{ if(preset.getSelectedId()>0){ processor.selectPreset(preset.getSelectedId()-1); subtitle.setText("LOADED: "+preset.getText()+"  |  Play a new note to audition.",juce::dontSendNotification); }};
  addAndMakeVisible(preset);
  const std::pair<const char*,const char*> controls[]{
@@ -65,14 +65,18 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
   const juce::String idString(id);
   // No long decimal strings. Envelopes retain millisecond-level editing accuracy.
   k->slider.setNumDecimalPlacesToDisplay(2);
+  // JUCE's number-of-decimals hint alone is insufficient for certain APVTS ranges.
+  // Explicitly format every editor readout as a fixed, two-decimal string.
+  k->slider.textFromValueFunction=[](double v){return juce::String(v,2);};
+  k->slider.valueFromTextFunction=[](const juce::String& text){return text.getDoubleValue();};
   k->slider.setColour(juce::Slider::textBoxTextColourId,juce::Colour(0xffdcffcd));
-  k->slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colour(0xff101d2a));
+  k->slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colour(0xff071008));
   k->slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff345936));
   k->slider.setColour(juce::Slider::rotarySliderFillColourId,juce::Colour(0xff76ff29));
   k->slider.setColour(juce::Slider::thumbColourId,juce::Colour(0xffb5ff6a));
   k->label.setText(label,juce::dontSendNotification);k->label.setJustificationType(juce::Justification::centred);
   k->label.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
-  k->label.setColour(juce::Label::textColourId,juce::Colours::lightgrey);
+  k->label.setColour(juce::Label::textColourId,juce::Colour(0xffc8f9a4));
   addAndMakeVisible(k->slider);addAndMakeVisible(k->label);
   k->attachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,id,k->slider);
   knobs.push_back(std::move(k));
@@ -198,7 +202,7 @@ void RageForgeEditor::paint(juce::Graphics& g){
  }
  g.setColour(lime.withAlpha(.36f));g.drawLine(22.f,765.f,1058.f,765.f,2.f);
  g.setColour(juce::Colour(0xffa7d59a));g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
- g.drawText("ETERNATONES PRODUCTIONS  //  BASS DESIGN ENGINE",26,770,700,20,juce::Justification::left);
+ g.drawText("SIK RAGE PRODUCTIONS  //  BASS DESIGN ENGINE",26,770,700,20,juce::Justification::left);
  g.setColour(lime);g.drawText("VST3  /  4X OVERSAMPLING",806,770,242,20,juce::Justification::centredRight);
 }
 void RageForgeEditor::resized(){
@@ -211,10 +215,10 @@ void RageForgeEditor::resized(){
      juce::roundToInt(ox+x*scale),juce::roundToInt(oy+y*scale),
      juce::jmax(1,juce::roundToInt(w*scale)),juce::jmax(1,juce::roundToInt(h*scale)));
  };
- brand.setBounds(scaled(36,18,500,62));
- tagline.setBounds(scaled(38,79,560,20));
+ brand.setBounds(scaled(26,14,620,69));
+ tagline.setBounds(scaled(39,81,680,20));
  preset.setBounds(scaled(787,25,257,38));
- subtitle.setBounds(scaled(787,70,267,23));
+ subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
    int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
    int x=25+col*172,y=376+row*134;
