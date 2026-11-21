@@ -62,6 +62,7 @@ struct StateVariableFilter {
 struct Voice {
  int note=-1; bool holding=false; int stage=0; float env=0,velocity=1;
  float phase1=0,phase2=0,phaseFM=0,phaseSub=0, freq=55, target=55;
+ int scopeCycle=0; // Tracks oscillator periods for the eight-cycle waveform preview.
  float lfo=0, drift=0, pan=0, retriggerPitchFade=0; uint32_t rng=1234567;
  StateVariableFilter main,form1,form2;
  void reset(){*this=Voice{};}
@@ -69,7 +70,7 @@ struct Voice {
  void start(int n,float vel,float offset,float hz, bool legato){
   const bool active=stage!=0;
   if(!legato && !active){
-    phase1=phase2=phaseFM=phaseSub=0;
+    phase1=phase2=phaseFM=phaseSub=0;scopeCycle=0;
     main.reset();form1.reset();form2.reset();env=0;stage=1;freq=hz;
     retriggerPitchFade=0.f;
   }else if(!legato && active){
@@ -139,7 +140,9 @@ struct Engine {
       const float d1=freq/osr, d2=std::min(freq*(1.f+p.detune*.018f),osr*.25f)/osr;
       v.phaseFM=fract(v.phaseFM+d1*(1.5f+6.f*p.fm));
       const float fm=std::sin(2*pi*v.phaseFM)*p.fm*2.2f;
-      v.phase1=fract(v.phase1+d1);
+      const float nextPhase1=v.phase1+d1;
+      if(nextPhase1>=1.f)v.scopeCycle=(v.scopeCycle+1)%8;
+      v.phase1=fract(nextPhase1);
       v.phase2=fract(v.phase2+d2);
       const float sh=clamp(p.shape+waveMod,0,1);
       const float mainPhase=fract(v.phase1+fm*.10f);
