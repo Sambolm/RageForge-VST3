@@ -10,6 +10,21 @@ constexpr float pi = 3.14159265358979323846f;
 inline float clamp(float x,float a,float b){return std::max(a,std::min(b,x));}
 inline float sat(float x){return std::tanh(x);}
 inline float fract(float x){return x-std::floor(x);}
+// Tempo divisions in quarter-note beats; 1 BAR means four beats in 4/4.
+inline float lfoBeatsPerCycle(int division){
+ constexpr float beats[]{.125f,.25f,.5f,1.f,2.f,4.f,8.f};
+ return beats[std::max(0,std::min(6,division))];
+}
+inline float lfoValue(float phase,int shape){
+ const float x=fract(phase);
+ switch(shape){
+  case 1:return 1.f-std::abs(2.f*x-1.f); // triangle
+  case 2:return x;                       // rising saw
+  case 3:return 1.f-x;                   // falling saw
+  case 4:return x<.5f?1.f:0.f;         // square
+  default:return .5f-.5f*std::cos(2.f*pi*x); // sine
+ }
+}
 inline float polyblep(float t,float dt){if(dt<=0)return 0; if(t<dt){float x=t/dt;return x+x-x*x-1;}if(t>1-dt){float x=(t-1)/dt;return x*x+x+x+1;}return 0;}
 inline float osc(float phase,float dt,float shape){
   const float sine=std::sin(2*pi*phase);
@@ -24,6 +39,7 @@ inline float osc(float phase,float dt,float shape){
 struct Params {
  float shape=.55f, fm=.30f, detune=.20f, sub=.50f;
  float cutoff=2400, resonance=.18f, vowel=.45f, movement=.55f, rate=2, drive=.50f;
+ int lfoDivision=3,lfoShape=0;
  float attack=.005f, decay=.17f, sustain=.65f, release=.18f;
  float stereo=.35f, level=.50f, mix=.95f, glide=.0f;
  bool mono=true;
@@ -89,9 +105,9 @@ struct Engine {
     for(int k=0;k<4;++k){
       const float glideCoeff=p.glide<=.001f?1.f:1.f-std::exp(-1.f/(p.glide*osr));
       v.freq+=(v.target-v.freq)*glideCoeff;
-      const float beatRate=(p.rate<=.01f?0.f:(beatBpm/60.f)*p.rate);
+      const float beatRate=(beatBpm/60.f)/lfoBeatsPerCycle(p.lfoDivision);
       v.lfo=fract(v.lfo+beatRate/osr);
-      const float mod=.5f-.5f*std::cos(2*pi*v.lfo);
+      const float mod=lfoValue(v.lfo,p.lfoShape);
       const float waveMod=p.movement*(mod-.5f);
       const float freq=std::min(v.freq,osr*.20f);
       const float d1=freq/osr, d2=std::min(freq*(1.f+p.detune*.018f),osr*.25f)/osr;
