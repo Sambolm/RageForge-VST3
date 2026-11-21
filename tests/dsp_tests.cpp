@@ -14,5 +14,15 @@ int main(){
  f.prepare(48000);f.p.shape=.95;f.p.fm=.95;f.p.vowel=.9;f.p.drive=.90;f.noteOn(41,1);double diff=0;for(float x:dry){float y=f.tick()[0];diff+=(x-y)*(x-y);}assert(diff>1.0);
  Engine p;p.prepare(48000);p.p.mono=false;p.noteOn(48,1);p.noteOn(55,1);auto poly=render(p,24000);assert(poly.energy>1);
  Engine low;low.prepare(48000);low.p.sub=1;low.p.drive=.9;low.noteOn(29,.95);auto b=render(low,24000);assert(b.energy>1&&b.peak<1.01);
+ assert(std::abs(lfoBeatsPerCycle(3)-1.f)<1e-6f);
+ assert(std::abs(lfoBeatsPerCycle(5)-4.f)<1e-6f);
+ assert(lfoValue(.25f,2) < lfoValue(.75f,2));
+ assert(lfoValue(.25f,3) > lfoValue(.75f,3));
+ assert(lfoValue(.25f,4) != lfoValue(.75f,4));
+ Engine modA;modA.prepare(48000);modA.p.movement=1;modA.p.lfoDivision=2;modA.p.lfoShape=0;modA.noteOn(41,1);
+ std::vector<float> sine(24000);for(auto &s:sine)s=modA.tick()[0];
+ Engine modB;modB.prepare(48000);modB.p.movement=1;modB.p.lfoDivision=2;modB.p.lfoShape=4;modB.noteOn(41,1);
+ double shapeDiff=0;for(auto s:sine){const float d=s-modB.tick()[0];shapeDiff+=d*d;}
+ assert(shapeDiff>.05);
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
