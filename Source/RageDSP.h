@@ -42,6 +42,7 @@ struct Params {
  int lfoDivision=3,lfoShape=0;
  float attack=.005f, decay=.17f, sustain=.65f, release=.18f;
  float stereo=.35f, level=.50f, mix=.95f, glide=.0f, headroomDb=3.f;
+ float waveBlend=0.f,waveWarp=0.f;
  bool mono=true;
 };
 struct StateVariableFilter {
@@ -92,7 +93,18 @@ struct Voice {
 };
 struct Engine {
  static constexpr int maxVoices=12;
+ static constexpr int waveSize=64;
  std::array<Voice,maxVoices> voices{};
+ std::array<float,waveSize> wave{},waveTarget{};
+ Engine(){for(int i=0;i<waveSize;++i)wave[i]=waveTarget[i]=std::sin(2.f*pi*(float)i/waveSize);}
+ void setWavePoint(int index,float value){if(index>=0&&index<waveSize)waveTarget[(size_t)index]=clamp(value,-1.f,1.f);}
+ float customWave(float phase,float warp) const {
+   const float warped=fract(phase+clamp(warp,0.f,1.f)*.18f*std::sin(2.f*pi*phase));
+   const float index=warped*(float)waveSize;
+   const int i=(int)index;
+   const float f=index-(float)i;
+   return wave[(size_t)(i%waveSize)]*(1.f-f)+wave[(size_t)((i+1)%waveSize)]*f;
+ }
  Params p{};float sr=48000,beatBpm=140;uint64_t samples=0;int nextVoice=0;
  void prepare(float rate){sr=std::max(8000.f,rate); samples=0;for(auto &v:voices)v.reset();}
  void setTempo(float bpm){beatBpm=clamp(bpm,30.f,300.f);}
@@ -108,6 +120,9 @@ struct Engine {
  // One output sample; internally 4x oversampled nonlinear synthesis and filters.
  std::array<float,2> tick(){
   float l=0,r=0;const float osr=sr*4.f;
+  // Smooth live edits to avoid audio discontinuities as the wave is drawn.
+  const float waveSlew=1.f-std::exp(-1.f/(.012f*sr));
+  for(int i=0;i<waveSize;++i)wave[(size_t)i]+=(waveTarget[(size_t)i]-wave[(size_t)i])*waveSlew;
   for(auto &v:voices){if(v.stage==0)continue;
     const float envelope=v.envelope(p,sr);if(v.stage==0)continue;
     float sum=0;
@@ -127,7 +142,8 @@ struct Engine {
       v.phase1=fract(v.phase1+d1);
       v.phase2=fract(v.phase2+d2);
       const float sh=clamp(p.shape+waveMod,0,1);
-      const float a=osc(fract(v.phase1+fm*.10f),d1,sh);
+      const float mainPhase=fract(v.phase1+fm*.10f);
+      const float a=(1.f-p.waveBlend)*osc(mainPhase,d1,sh)+p.waveBlend*customWave(mainPhase,p.waveWarp);
       const float b=osc(fract(v.phase2-fm*.065f),d2,clamp(sh+.24f,0,1));
       float mid=.60f*a+.40f*b;
       const float cutoff=clamp(p.cutoff*std::pow(2.f,waveMod*4.f),60.f,osr*.30f);
