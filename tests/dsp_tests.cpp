@@ -40,5 +40,20 @@ int main(){
  const auto quietMetrics=render(quiet,12000);
  assert(quietMetrics.energy<loudMetrics.energy*.20);
  assert(loudMetrics.peak<=.892f && quietMetrics.peak<=.892f);
+ // The user-drawn wavetable must change audible synthesis, not just the UI.
+ Engine base;base.prepare(48000);base.p.waveBlend=1.f;base.noteOn(41,1.f);
+ std::vector<float> reference(24000);
+ for(auto &v:reference)v=base.tick()[0];
+ Engine drawn;drawn.prepare(48000);drawn.p.waveBlend=1.f;drawn.p.waveWarp=.60f;
+ for(int i=0;i<Engine::waveSize;++i)drawn.setWavePoint(i,i<Engine::waveSize/2?1.f:-1.f);
+ drawn.noteOn(41,1.f);
+ double userWaveDiff=0;for(auto v:reference){const double d=v-drawn.tick()[0];userWaveDiff+=d*d;}
+ assert(userWaveDiff>0.5);
+ Engine off;off.prepare(48000);off.p.waveBlend=0;off.noteOn(41,1.f);
+ Engine offDraw;offDraw.prepare(48000);offDraw.p.waveBlend=0;
+ for(int i=0;i<Engine::waveSize;++i)offDraw.setWavePoint(i,i%2?1.f:-1.f);
+ offDraw.noteOn(41,1.f);
+ double bypassDiff=0;for(int i=0;i<12000;++i){double d=off.tick()[0]-offDraw.tick()[0];bypassDiff+=d*d;}
+ assert(bypassDiff<1e-8);
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
