@@ -150,21 +150,42 @@ void RageForgeEditor::paint(juce::Graphics& g){
  g.setColour(juce::Colour(0xffa1df8b));g.setFont(11.f);
  g.drawText("OSC 1  //  MORPH  +  FM",39,177,255,16,juce::Justification::left);
  g.drawText("OSC 2  //  DETUNE  +  SUB",39,231,255,16,juce::Justification::left);
+ // Previews evaluate the same oscillators as RageDSP, using a fixed note and
+ // a frozen LFO position. They show the wave SHAPE, not a recorded audio trace.
+ const float morph=processor.state.getRawParameterValue("shape")->load();
+ const float fm=processor.state.getRawParameterValue("fm")->load();
+ const float detune=processor.state.getRawParameterValue("detune")->load();
+ const float movement=processor.state.getRawParameterValue("movement")->load();
+ const float sub=processor.state.getRawParameterValue("sub")->load();
  for(int j=0;j<2;++j){
-   auto r=juce::Rectangle<float>(39.f,197.f+j*53.f,260.f,38.f);
+   const auto r=juce::Rectangle<float>(39.f,197.f+j*53.f,260.f,38.f);
    g.setColour(juce::Colour(0xff101d10));g.fillRoundedRectangle(r,5.f);
+   const float previewCycles=4.f;
+   const float sampleSteps=512.f;
+   const float dt=previewCycles/sampleSteps;
+   const float phase2Factor=1.f+detune*.018f;
+   const float frozenLfo=.15f*movement;
+   const float waveShape=rage::clamp(morph+frozenLfo,0.f,1.f);
    juce::Path wave;
-   for(int i=0;i<240;++i){
-     float t=(float)i/240.f;
-     float val=j==0?std::sin(t*juce::MathConstants<float>::twoPi*5.f):
-       2.f*(t*5.f-std::floor(t*5.f))-1.f;
-     const float xx=r.getX()+10.f+(float)i,yy=r.getCentreY()-val*13.f;
-     if(i==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);
+   for(int i=0;i<=512;++i){
+     const float t=(float)i/sampleSteps;
+     const float basePhase=t*previewCycles;
+     const float fmPhase=basePhase*(1.5f+6.f*fm);
+     const float fmAmount=std::sin(rage::pi*2.f*fmPhase)*fm*2.2f;
+     const float phase=j==0
+       ?rage::fract(basePhase+fmAmount*.10f)
+       :rage::fract(basePhase*phase2Factor-fmAmount*.065f);
+     const float shape=j==0?waveShape:rage::clamp(waveShape+.24f,0.f,1.f);
+     const float value=rage::osc(phase,dt*(j==0?1.f:phase2Factor),shape);
+     const float x=r.getX()+7.f+t*(r.getWidth()-14.f);
+     const float y=r.getCentreY()-value*14.f;
+     if(i==0)wave.startNewSubPath(x,y);else wave.lineTo(x,y);
    }
    {
-     juce::Graphics::ScopedSaveState clip(g);
+     juce::Graphics::ScopedSaveState clipped(g);
      g.reduceClipRegion(r.reduced(3.f).getSmallestIntegerContainer());
-     g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.8f));
+     g.setColour(lime.withAlpha(.28f));g.strokePath(wave,juce::PathStrokeType(4.f));
+     g.setColour(glow);g.strokePath(wave,juce::PathStrokeType(1.5f));
    }
  }
  // The oscilloscope is a visual preview driven by morph/FM/movement parameters.
@@ -173,9 +194,7 @@ void RageForgeEditor::paint(juce::Graphics& g){
  g.setColour(lime.withAlpha(.13f));
  for(int i=1;i<10;++i){float x=scope.getX()+scope.getWidth()*i/10.f;g.drawVerticalLine((int)x,scope.getY()+3.f,scope.getBottom()-3.f);}
  for(int i=1;i<4;++i){float y=scope.getY()+scope.getHeight()*i/4.f;g.drawHorizontalLine((int)y,scope.getX()+3.f,scope.getRight()-3.f);}
- const float morph=processor.state.getRawParameterValue("shape")->load();
- const float fm=processor.state.getRawParameterValue("fm")->load();
- const float move=processor.state.getRawParameterValue("movement")->load();
+ const float move=movement;
  juce::Path waveform;
  for(int i=0;i<376;++i){
    float t=(float)i/376.f, p=t*juce::MathConstants<float>::twoPi*8.f;
