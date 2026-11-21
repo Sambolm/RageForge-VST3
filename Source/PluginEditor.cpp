@@ -27,6 +27,7 @@ void RageForgeEditor::WaveDraw::edit(const juce::MouseEvent& e){
    }
  }else processor.setWavePoint(index,y);
  lastIndex=index;lastValue=y;repaint();
+ if(auto* parent=getParentComponent())parent->repaint();
 }
 void RageForgeEditor::WaveDraw::mouseDown(const juce::MouseEvent& e){lastIndex=-1;edit(e);}
 void RageForgeEditor::WaveDraw::mouseDrag(const juce::MouseEvent& e){edit(e);}
@@ -34,6 +35,7 @@ void RageForgeEditor::WaveDraw::mouseDoubleClick(const juce::MouseEvent&){
  for(int i=0;i<rage::Engine::waveSize;++i)
   processor.setWavePoint(i,std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
  lastIndex=-1;repaint();
+ if(auto* parent=getParentComponent())parent->repaint();
 }
 void RageForgeEditor::NeonLookAndFeel::drawRotarySlider(juce::Graphics& g,int x,int y,int w,int h,float pos,float start,float end,juce::Slider& slider){
  auto bounds=juce::Rectangle<float>((float)x,(float)y,(float)w,(float)h);
@@ -218,7 +220,16 @@ void RageForgeEditor::paint(juce::Graphics& g){
    const float basePhase=t*8.f;
    const float fmAmount=std::sin(2.f*rage::pi*basePhase*(1.5f+6.f*fm))*fm*2.2f;
    const float shape=rage::clamp(morph+.15f*move,0.f,1.f);
-   const float a=rage::osc(rage::fract(basePhase+fmAmount*.10f),8.f/376.f,shape);
+   const float mainPhase=rage::fract(basePhase+fmAmount*.10f);
+   const float blend=processor.state.getRawParameterValue("waveBlend")->load();
+   const float warp=processor.state.getRawParameterValue("waveWarp")->load();
+   const float warped=rage::fract(mainPhase+warp*.18f*std::sin(2.f*rage::pi*mainPhase));
+   const float wavetableIndex=warped*(float)rage::Engine::waveSize;
+   const int tableI=(int)wavetableIndex;
+   const float fraction=wavetableIndex-(float)tableI;
+   const float custom=processor.getWavePoint(tableI%rage::Engine::waveSize)*(1.f-fraction)
+     +processor.getWavePoint((tableI+1)%rage::Engine::waveSize)*fraction;
+   const float a=(1.f-blend)*rage::osc(mainPhase,8.f/376.f,shape)+blend*custom;
    const float b=rage::osc(rage::fract(basePhase*(1.f+detune*.018f)-fmAmount*.065f),
                             (8.f/376.f)*(1.f+detune*.018f),rage::clamp(shape+.24f,0.f,1.f));
    const float value=.60f*a+.40f*b;
@@ -233,7 +244,7 @@ void RageForgeEditor::paint(juce::Graphics& g){
    g.setColour(glow);g.strokePath(waveform,juce::PathStrokeType(1.4f));
  }
  g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
- g.drawText("MORPHING WAVEFORM  //  PARAMETER PREVIEW",353,305,345,16,juce::Justification::left);
+ g.drawText("OSCILLATORS  //  DRAWN WAVE + FM PREVIEW",353,305,345,16,juce::Justification::left);
  // LFO monitor: constrain all drawing INSIDE the monitor viewport.
  // Rapid rates show one beat instead of 32 overlapping cycles in a single bar.
  const auto graph=juce::Rectangle<float>(783.f,258.f,256.f,52.f);
