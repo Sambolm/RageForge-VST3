@@ -12,6 +12,7 @@ private:
  public:
   void drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
   void drawComboBox(juce::Graphics&, int, int, bool, int, int, int, int, juce::ComboBox&) override;
+  void drawLinearSlider(juce::Graphics&, int,int,int,int,float,float,float,juce::Slider::SliderStyle,juce::Slider&) override;
  } neon;
  RageForgeProcessor& processor;
  class WaveDraw final : public juce::Component, public juce::SettableTooltipClient {
@@ -28,6 +29,7 @@ private:
  };
  WaveDraw waveDrawing;
  juce::Slider waveBlendSlider,waveWarpSlider;
+ juce::Label waveBlendValue,waveWarpValue;
  std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> waveBlendAttachment,waveWarpAttachment;
  juce::ComboBox preset;
  juce::ComboBox lfoDivision, lfoShape;
