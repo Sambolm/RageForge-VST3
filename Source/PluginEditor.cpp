@@ -74,7 +74,7 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
   k->slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff345936));
   k->slider.setColour(juce::Slider::rotarySliderFillColourId,juce::Colour(0xff76ff29));
   k->slider.setColour(juce::Slider::thumbColourId,juce::Colour(0xffb5ff6a));
-  k->label.setText(label,juce::dontSendNotification);k->label.setJustificationType(juce::Justification::centred);
+  k->label.setText(label,juce::dontSendNotification);k->label.setJustificationType(juce::Justification::centred);k->label.setMinimumHorizontalScale(.65f);
   k->label.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
   k->label.setColour(juce::Label::textColourId,juce::Colour(0xffc8f9a4));
   addAndMakeVisible(k->slider);addAndMakeVisible(k->label);
@@ -216,15 +216,20 @@ void RageForgeEditor::resized(){
      juce::jmax(1,juce::roundToInt(w*scale)),juce::jmax(1,juce::roundToInt(h*scale)));
  };
  brand.setBounds(scaled(26,14,620,69));
+ tagline.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,13.f*scale))));
  tagline.setBounds(scaled(39,81,680,20));
  preset.setBounds(scaled(787,25,257,38));
+ subtitle.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,12.f*scale))));
  subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
    int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
    int x=25+col*172,y=376+row*134;
+   knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
    knobs[i]->label.setBounds(scaled(x,y,165,19));
    knobs[i]->slider.setBounds(scaled(x+20,y+17,128,91));
  }
+ lfoDivisionLabel.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
+ lfoShapeLabel.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
  lfoDivisionLabel.setBounds(scaled(781,201,120,16));
  lfoDivision.setBounds(scaled(782,217,120,28));
  lfoShapeLabel.setBounds(scaled(911,201,123,16));
