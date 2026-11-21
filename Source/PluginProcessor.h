@@ -1,6 +1,8 @@
 #pragma once
 #include <JuceHeader.h>
 #include "RageDSP.h"
+#include <atomic>
+#include <array>
 
 class RageForgeProcessor final : public juce::AudioProcessor {
 public:
@@ -26,9 +28,12 @@ public:
  void setStateInformation(const void*,int) override;
  static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
  void selectPreset(int);
+ void setWavePoint(int index,float value);
+ float getWavePoint(int index) const;
  juce::AudioProcessorValueTreeState state;
 private:
  rage::Engine engine;
+ std::array<std::atomic<float>,rage::Engine::waveSize> userWave{};
  void syncParameters();
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RageForgeProcessor)
 };
