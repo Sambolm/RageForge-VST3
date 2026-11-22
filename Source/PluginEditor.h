@@ -59,7 +59,10 @@ private:
  AutomatableSlider waveBlendSlider,waveWarpSlider;
  juce::Label waveBlendValue,waveWarpValue;
  std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> waveBlendAttachment,waveWarpAttachment;
- juce::ComboBox preset;
+ juce::ComboBox preset,dropPreset;
+ juce::TextButton dropPageButton{"DROP LAB"};
+ bool dropLabPage=false;
+ void updatePage();
  juce::ComboBox lfoDivision, lfoShape;
  juce::Label lfoDivisionLabel, lfoShapeLabel;
  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> divisionAttachment, shapeAttachment;
