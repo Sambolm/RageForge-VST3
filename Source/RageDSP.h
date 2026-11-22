@@ -38,44 +38,42 @@ inline float osc(float phase,float dt,float shape){
 }
 // Two-bar, 16th-note drop rhythm. 0 = silence, 1-4 = attack and timbral variation.
 // A single held MIDI note drives every step, so generated patterns never jump pitch.
+// Two bars of music with selectable eighth, sixteenth, thirty-second or
+// sixteenth-triplet subdivisions. The generated values denote accent/timbre,
+// never pitch. A maximum 64-step grid preserves lightweight real-time playback.
 struct RhythmPattern {
- static constexpr int steps=32;
+ static constexpr int steps=64;
  std::array<uint8_t,steps> hits{};
- static RhythmPattern generate(int family,uint32_t seed){
-  // Five intentionally syncopated call/response templates, not note transposition.
-  static constexpr uint8_t patterns[5][32]={
-   {4,0,2,0, 0,2,0,3, 4,0,0,2, 0,3,2,0,
-    4,0,3,0, 0,2,3,0, 4,0,2,0, 3,0,2,0},
-   {4,0,0,2, 3,0,0,0, 4,0,2,0, 0,3,0,2,
-    4,0,0,3, 0,2,0,0, 4,0,2,3, 0,0,3,0},
-   {4,0,3,0, 2,0,0,3, 4,0,2,0, 3,0,2,0,
-    4,0,0,3, 2,0,3,0, 4,0,2,0, 0,3,2,0},
-   {4,0,4,0, 0,3,0,2, 4,0,4,0, 3,0,2,0,
-    4,0,0,4, 3,0,3,0, 4,0,2,3, 4,0,3,0},
-   {4,0,2,3, 0,2,0,4, 0,3,2,0, 4,0,0,2,
-    4,0,3,0, 2,3,0,2, 4,0,2,0, 3,0,4,0}
-  };
-  family=std::max(0,std::min(4,family));
+ static int stepCount(int resolution){return resolution==0?16:resolution==1?32:resolution==2?64:48;}
+ static RhythmPattern generate(int family,uint32_t seed,int resolution=1,int density=1){
+  family=std::max(0,std::min(4,family));density=std::max(0,std::min(2,density));
+  const int count=stepCount(resolution);
+  const int perBeat=count/8;
   RhythmPattern p;
-  for(int i=0;i<steps;++i)p.hits[(size_t)i]=patterns[family][i];
   auto random=[&seed](){seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;return seed;};
-  // Preserve accents and the two-bar shape; vary offbeats, rests and the turnaround.
-  for(int i=1;i<steps;++i){
-   if(i==16||i%8==0)continue;
-   const uint32_t r=random();
-   if(r%100<19){
-     if(p.hits[(size_t)i]==0){
-       if((r/101)%100<48)p.hits[(size_t)i]=(uint8_t)(1+(r/17)%3);
-     }else if((r/103)%100<35)p.hits[(size_t)i]=0;
-     else p.hits[(size_t)i]=(uint8_t)(1+(r/31)%4);
-   }
+  const int threshold=density==0?27:density==1?45:64;
+  // Backbeat anchors, sparse syncopation, and different turnaround emphasis
+  // per sonic family. Faster rates produce meaningful 32nd/triplet fills.
+  for(int i=0;i<count;++i){
+   const bool barStart=i==0||i==count/2;
+   const bool strong=(i%perBeat)==0;
+   const bool halfBeat=(i%perBeat)==perBeat/2;
+   const bool late=(i>=count/2);
+   const int rand=(int)(random()%100);
+   int chance=strong?78:halfBeat?48:threshold;
+   if(family==3)chance+=13; // Riddim chops
+   if(family==1 && i%perBeat>0)chance-=7; // Screech punctuation
+   if(family==2 && late)chance+=9; // Servo call/response
+   if(family==0 && (i%perBeat==perBeat-1))chance+=10;
+   if(density==0&&!strong)chance-=23;
+   if(density==2 && late && i>=count-perBeat*2)chance+=21;
+   if(barStart || rand<std::max(3,std::min(95,chance)))
+     p.hits[(size_t)i]=(uint8_t)(barStart?4:strong?3:1+(random()%3));
   }
-  p.hits[0]=4;p.hits[16]=4;
+  p.hits[0]=4;p.hits[(size_t)(count/2)]=4;
   return p;
  }
 };
-// Internal one-note note sequencer. Starts only after MIDI note-on and keeps the
-// selected note fixed for every hit; tempo changes do not create a second voice.
 struct RhythmPlayer {
  struct Event {bool on=false,off=false;int step=0;uint8_t tone=0;float velocity=0.f;};
  bool held=false,sounding=false,pending=true;
@@ -85,7 +83,9 @@ struct RhythmPlayer {
  void start(int n,float v){note=n;velocity=v;phase=0;step=0;held=true;sounding=false;pending=true;}
  void stop(int n){if(n==note){held=false;pending=false;}}
  void reset(){held=false;sounding=false;pending=true;phase=0;step=0;}
- Event tick(float sampleRate,float bpm,const RhythmPattern& pattern){
+ Event tick(float sampleRate,float bpm,const RhythmPattern& pattern,int resolution=1){
+  const int count=RhythmPattern::stepCount(resolution);
+  if(step>=count){step=0;pending=true;phase=0;}
   Event e;e.step=step;
   if(!held){if(sounding){e.off=true;sounding=false;}return e;}
   const uint8_t tone=pattern.hits[(size_t)step];
@@ -94,15 +94,14 @@ struct RhythmPlayer {
    if(sounding){e.off=true;sounding=false;}
    if(tone!=0){e.on=true;e.tone=tone;e.velocity=velocity*(.62f+.095f*tone);sounding=true;}
   }
-  // Clearly separated chops; a small release may follow the gate.
   const double gate=tone==4?.81:tone==3?.72:.65;
-  const double delta=(double)std::max(30.f,std::min(300.f,bpm))*4.0/
-                     (60.0*std::max(8000.f,sampleRate));
+  const double delta=(double)std::max(30.f,std::min(300.f,bpm))*(double)count/
+                     (60.0*8.0*std::max(8000.f,sampleRate));
   const double next=phase+delta;
   if(sounding && phase<gate && next>=gate){e.off=true;sounding=false;}
   if(next>=1.0){
    phase=next-1.0;
-   step=(step+1)%RhythmPattern::steps;
+   step=(step+1)%count;
    pending=true;
    if(sounding){e.off=true;sounding=false;}
   }else phase=next;
