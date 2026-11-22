@@ -48,6 +48,7 @@ struct Params {
  // Signature Sound controls: default zero leaves existing sessions untouched.
  float fmRatio=0.f,pitchDive=0.f,vowelSweep=0.f,midCrunch=0.f;
  bool mono=true;
+ bool freshRetrigger=true; // Fresh stabs by default, optional classic phase-continuous retrigger.
 };
 struct StateVariableFilter {
  float ic1=0,ic2=0;
@@ -112,12 +113,16 @@ struct Engine {
    return wave[(size_t)(i%waveSize)]*(1.f-f)+wave[(size_t)((i+1)%waveSize)]*f;
  }
  Params p{};float sr=48000,beatBpm=140;uint64_t samples=0;int nextVoice=0;
+ float lastOutputL=0.f,lastOutputR=0.f,transitionL=0.f,transitionR=0.f;
+ int retriggerFadeRemaining=0,retriggerFadeTotal=1;
  // Per-sample smoothing keeps FL Studio automation from creating parameter jumps.
  float growlSmooth=0.f,screechSmooth=0.f,servoSmooth=0.f,punchSmooth=0.f;
  float fmRatioSmooth=0.f,pitchDiveSmooth=0.f,vowelSweepSmooth=0.f,midCrunchSmooth=0.f;
  void prepare(float rate){sr=std::max(8000.f,rate); samples=0;for(auto &v:voices)v.reset();
   growlSmooth=screechSmooth=servoSmooth=punchSmooth=0.f;
-  fmRatioSmooth=pitchDiveSmooth=vowelSweepSmooth=midCrunchSmooth=0.f;}
+  fmRatioSmooth=pitchDiveSmooth=vowelSweepSmooth=midCrunchSmooth=0.f;
+  lastOutputL=lastOutputR=transitionL=transitionR=0.f;
+  retriggerFadeRemaining=0;retriggerFadeTotal=std::max(1,(int)(sr*.0025f));}
  void setTempo(float bpm){beatBpm=clamp(bpm,30.f,300.f);}
  void noteOn(int n,float vel){
   n=std::max(0,std::min(n,127));const float hz=440.f*std::pow(2.f,(n-69)/12.f);
@@ -127,11 +132,23 @@ struct Engine {
    // A voice in its release tail must start a fresh envelope on the next note.
    // Otherwise pitch changes can sound like a delayed double hit or "flam".
    const bool trueLegato=v.holding && v.stage!=0 && p.glide>.001f;
+   if(!trueLegato && p.freshRetrigger){
+     if(v.stage!=0){
+       // Bridge the outgoing sample to the fresh attack over 2.5ms, without
+       // keeping a second voice or its filter/LFO tail alive.
+       transitionL=lastOutputL;transitionR=lastOutputR;
+       retriggerFadeRemaining=retriggerFadeTotal;
+     }else retriggerFadeRemaining=0;
+     // Reset *all* per-note state: oscillator/FM/sub phases, LFO, filters,
+     // pitch, attack, note-age, and mid-band filter memory.
+     v.reset();
+   }
    v.start(n,vel,0,hz,trueLegato);
    return;
   }
   Voice* v=nullptr;for(auto &a:voices)if(a.stage==0){v=&a;break;}
   if(!v){v=&voices[static_cast<size_t>(nextVoice++%maxVoices)];}
+  if(p.freshRetrigger)v->reset();
   v->start(n,vel,(nextVoice%2==0?-.35f:.35f),hz,false);
  }
  void noteOff(int n){for(auto &v:voices)if(v.note==n && v.holding)v.stop();}
@@ -241,8 +258,17 @@ struct Engine {
   const float gain=std::pow(10.f,-clamp(p.headroomDb,0.f,18.f)/20.f);
   constexpr float ceiling=.891250938f;
   // Smooth soft ceiling rather than hard clipping, which would add new clicks.
-  return {ceiling*sat(sat(l*.90f)*gain/ceiling),
-          ceiling*sat(sat(r*.90f)*gain/ceiling)};
+  float outL=ceiling*sat(sat(l*.90f)*gain/ceiling);
+  float outR=ceiling*sat(sat(r*.90f)*gain/ceiling);
+  if(retriggerFadeRemaining>0){
+    const float t=(float)retriggerFadeRemaining/(float)retriggerFadeTotal;
+    const float previousWeight=t*t;
+    outL=transitionL*previousWeight+outL*(1.f-previousWeight);
+    outR=transitionR*previousWeight+outR*(1.f-previousWeight);
+    --retriggerFadeRemaining;
+  }
+  lastOutputL=outL;lastOutputR=outR;
+  return {clamp(outL,-ceiling,ceiling),clamp(outR,-ceiling,ceiling)};
  }
 };
 } // namespace rage
