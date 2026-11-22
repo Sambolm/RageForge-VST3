@@ -56,9 +56,9 @@ private:
    juce::Slider::mouseUp(e);
   }
  };
- AutomatableSlider waveBlendSlider,waveWarpSlider;
+ AutomatableSlider waveBlendSlider,waveWarpSlider,bassBodySlider;
  juce::Label waveBlendValue,waveWarpValue;
- std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> waveBlendAttachment,waveWarpAttachment;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> waveBlendAttachment,waveWarpAttachment,bassBodyAttachment;
  juce::ComboBox preset,dropPreset;
  juce::TextButton dropPageButton{"DROP LAB"};
  juce::TextButton generateBassButton{"GENERATE VARIATION"};
