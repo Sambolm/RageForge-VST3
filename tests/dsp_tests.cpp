@@ -92,5 +92,45 @@ int main(){
  // The old note-off must never silence the newer held note.
  overlap.noteOff(60);
  assert(overlap.voices[0].holding && overlap.voices[0].note==61);
+ // Global mono transition regression: all keyboard intervals and both glide settings.
+ // Different note changes must never inherit the old RELEASE envelope.
+ for(float glideValue:{0.f,.08f}){
+  for(int baseNote:{36,48,60,72}){
+   for(int interval:{-12,-7,-2,-1,0,1,2,7,12}){
+    const int nextNote=baseNote+interval;
+    if(nextNote<0||nextNote>127)continue;
+    Engine change;change.prepare(48000);
+    change.p.mono=true;change.p.glide=glideValue;change.p.attack=.003f;change.p.release=.2f;
+    change.noteOn(baseNote,.8f);
+    render(change,3600);
+    change.noteOff(baseNote);
+    render(change,480);
+    assert(change.voices[0].stage==4 && !change.voices[0].holding);
+    const float before=change.tick()[0];
+    change.noteOn(nextNote,.8f);
+    const auto& voice=change.voices[0];
+    assert(voice.note==nextNote && voice.holding && voice.stage==1);
+    const float after=change.tick()[0];
+    assert(std::isfinite(after) && std::abs(after-before)<.25f);
+    // Must sustain, not give a second delayed attack/release.
+    render(change,2000);
+    assert(change.voices[0].holding && change.voices[0].stage!=4);
+    change.noteOff(nextNote);
+    assert(!change.voices[0].holding);
+   }
+  }
+ }
+ // Overlapping transitions: no envelope restart, even through large pitch jumps.
+ for(int interval:{-12,-7,-1,1,7,12}){
+  Engine legato;legato.prepare(48000);legato.p.mono=true;legato.p.glide=.06f;
+  legato.noteOn(60,1.f);render(legato,3600);
+  const float beforeEnv=legato.voices[0].env;
+  const int beforeStage=legato.voices[0].stage;
+  legato.noteOn(60+interval,1.f);
+  assert(legato.voices[0].stage==beforeStage);
+  assert(std::abs(legato.voices[0].env-beforeEnv)<1e-5f);
+  legato.noteOff(60);
+  assert(legato.voices[0].holding);
+ }
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
