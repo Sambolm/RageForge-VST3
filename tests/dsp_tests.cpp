@@ -273,5 +273,29 @@ int main(){
      if(rhythm.tick(rate,bpm,pattern).on)accidentallyRestarted=true;
    assert(!accidentallyRestarted);
  }
+ // Explicit subdivision regression: two bars remain eight beats long,
+ // with playable 1/8, 1/16, 1/32 and 1/16-triplet hits.
+ for(int grid=0;grid<4;++grid){
+   const int steps=rage::RhythmPattern::stepCount(grid);
+   assert(steps==(grid==0?16:grid==1?32:grid==2?64:48));
+   for(int density=0;density<3;++density){
+     const auto groove=rage::RhythmPattern::generate(3,0x93abcdefu+grid*127u+density*7u,grid,density);
+     assert(groove.hits[0]==4&&groove.hits[(size_t)(steps/2)]==4);
+     int accents=0;
+     for(int k=0;k<steps;++k)if(groove.hits[(size_t)k])++accents;
+     assert(accents>=2&&accents<=steps);
+     rage::RhythmPlayer player;
+     player.start(44,.8f);
+     const double rate=48000.0,bpm=120.0;
+     const int samples=(int)(rate*60.0/bpm*8.0);
+     int on=0;
+     for(int k=0;k<samples;++k){
+       auto e=player.tick((float)rate,(float)bpm,groove,grid);
+       if(e.on){assert(e.tone>=1&&e.tone<=4);assert(player.note==44);++on;}
+     }
+     assert(on>=accents-1&&on<=accents+1);
+     assert(player.step==0||player.step==steps-1); // two-bar wrap
+   }
+ }
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
