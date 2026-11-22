@@ -247,6 +247,24 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  };
  addAndMakeVisible(generateBassButton);
  generateBassButton.setVisible(false);
+ generateRhythmButton.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff295c29));
+ generateRhythmButton.setColour(juce::TextButton::textColourOffId,juce::Colour(0xffd7ffb4));
+ generateRhythmButton.setTooltip("Generate an original 2-bar syncopated rhythm. Hold a MIDI note with Rhythm On to play it.");
+ generateRhythmButton.onClick=[this]{
+   const int family=juce::jmax(0,dropPreset.getSelectedId()-1);
+   processor.generateRhythm(family);
+   subtitle.setText("DROP LAB / "+(dropPreset.getSelectedId()>0?dropPreset.getText():"BEAST GROWL")
+      +" / NEW TWO-BAR RHYTHM",juce::dontSendNotification);
+   repaint();
+ };
+ addAndMakeVisible(generateRhythmButton);
+ generateRhythmButton.setVisible(false);
+ rhythmEnabled.setTooltip("Hold any MIDI note in FL Studio. RageForge plays the generated two-bar rhythm at project BPM.");
+ rhythmEnabled.setColour(juce::ToggleButton::textColourId,juce::Colour(0xffc8ff92));
+ addAndMakeVisible(rhythmEnabled);
+ rhythmEnabledAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+   p.state,"rhythmEnabled",rhythmEnabled);
+ rhythmEnabled.setVisible(false);
  dropPageButton.onClick=[this]{
   dropLabPage=!dropLabPage;
   updatePage();
@@ -360,6 +378,8 @@ void RageForgeEditor::updatePage(){
  dropPageButton.setButtonText(dropLabPage?"SYNTH CONTROLS":"DROP LAB");
  dropPreset.setVisible(dropLabPage);
  generateBassButton.setVisible(dropLabPage);
+ generateRhythmButton.setVisible(dropLabPage);
+ rhythmEnabled.setVisible(dropLabPage);
  for(size_t i=0;i<knobs.size();++i){
   const bool visible=dropLabPage?(i>=18):(i<18);
   knobs[i]->slider.setVisible(visible);
@@ -409,7 +429,7 @@ void RageForgeEditor::showAutomationMenu(const juce::String& parameterId){
 }
 RageForgeEditor::~RageForgeEditor(){stopTimer();setLookAndFeel(nullptr);}
 void RageForgeEditor::timerCallback(){
- const bool active=processor.isWavePlaying();
+ const bool active=processor.isWavePlaying() || processor.state.getRawParameterValue("rhythmEnabled")->load()>.5f;
  if(active || playheadPreviouslyVisible){
    waveDrawing.repaint();
    repaint();
@@ -555,8 +575,30 @@ void RageForgeEditor::paint(juce::Graphics& g){
    g.setColour(glow.withAlpha(.8f));g.drawText(explain[i],(int)x+6,692,225,18,juce::Justification::centred);
   }
   g.setColour(juce::Colour(0xff9ccc8f));g.setFont(juce::Font(juce::FontOptions(12.f)));
-  g.drawText("ORIGINAL WAVEFORMS  /  SYNTH CONTROLS  /  FULL FL STUDIO AUTOMATION",
-             50,721,965,16,juce::Justification::centred);
+  g.setColour(juce::Colour(0xffa5c994));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+  g.drawText("TWO BARS / HOLD ONE MIDI NOTE / BPM SYNC / NO PITCH JUMPS",51,704,974,15,juce::Justification::centred);
+  const bool rhythmIsOn=processor.state.getRawParameterValue("rhythmEnabled")->load()>.5f;
+  const int currentStep=processor.getRhythmPlayhead();
+  for(int i=0;i<32;++i){
+   const float x=47.f+(float)i*30.85f;
+   const int value=processor.getRhythmStep(i);
+   const bool current=rhythmIsOn && i==currentStep;
+   const auto r=juce::Rectangle<float>(x,724.f,27.5f,22.f);
+   g.setColour(juce::Colour(current?0xff365f30:0xff071308));
+   g.fillRoundedRectangle(r,3.f);
+   g.setColour(lime.withAlpha(i%16==0?.70f:.22f));
+   g.drawRoundedRectangle(r,3.f,1.f);
+   if(value){
+     g.setColour(juce::Colour(0xff76ff29).withAlpha(.28f+.18f*value));
+     g.fillRoundedRectangle(r.reduced(3.f),2.f);
+     g.setColour(juce::Colour(0xffc6ff8e));
+     g.fillRect(r.getX()+11.f,r.getBottom()-5.f-(float)value*2.3f,5.f,(float)value*2.3f);
+   }
+   if(current){
+     g.setColour(juce::Colour(0xfff0ffbe));
+     g.drawRoundedRectangle(r.reduced(.5f),3.f,2.f);
+   }
+  }
  }else{
   const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
                       "MOVEMENT  /  FILTER & ENVELOPES",
@@ -600,6 +642,8 @@ void RageForgeEditor::resized(){
  dropPageButton.setBounds(scaled(518,118,177,23));
  dropPreset.setBounds(scaled(760,359,265,31));
  generateBassButton.setBounds(scaled(761,395,264,29));
+ generateRhythmButton.setBounds(scaled(481,395,255,29));
+ rhythmEnabled.setBounds(scaled(488,362,230,25));
  subtitle.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,12.f*scale))));
  subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
@@ -628,5 +672,5 @@ void RageForgeEditor::resized(){
  lfoShape.setBounds(scaled(910,217,125,28));
  // Mono/legato lives in the oscillator card; never cover the LFO graph.
  mono.setBounds(scaled(833,118,201,21));
- resetEachNote.setBounds(scaled(833,143,201,21));
+ resetEachNote.setBounds(scaled(516,149,215,24));
 }
