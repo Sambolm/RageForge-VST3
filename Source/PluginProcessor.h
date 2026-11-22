@@ -30,6 +30,10 @@ public:
  void selectPreset(int);
  void selectDropPreset(int);
  void generateDropVariation(int family);
+ void generateRhythm(int family);
+ int getRhythmStep(int i) const;
+ int getRhythmPlayhead() const noexcept {return rhythmStepDisplay.load(std::memory_order_relaxed);}
+ int getRhythmNote() const noexcept {return rhythmLastNote.load(std::memory_order_relaxed);}
  void setWavePoint(int index,float value);
  float getWavePoint(int index) const;
  bool isWavePlaying() const noexcept {return wavePlaying.load(std::memory_order_relaxed);}
@@ -39,7 +43,12 @@ public:
 private:
  rage::Engine engine;
  std::array<std::atomic<float>,rage::Engine::waveSize> userWave{};
- uint32_t variationCounter=0;
+ uint32_t variationCounter=0,rhythmCounter=0;
+ std::array<std::atomic<uint8_t>,rage::RhythmPattern::steps> rhythmSteps{};
+ rage::RhythmPlayer rhythmPlayer;
+ std::atomic<int> rhythmStepDisplay{0},rhythmLastNote{41};
+ uint8_t rhythmTone=0;
+ bool wasRhythmEnabled=false;
  std::atomic<bool> wavePlaying{false};
  std::atomic<float> wavePhase{0.f},waveScopeProgress{0.f};
  void syncParameters();
