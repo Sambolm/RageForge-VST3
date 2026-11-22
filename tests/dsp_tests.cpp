@@ -194,5 +194,48 @@ int main(){
    }
    assert(difference>.0001);
  }
+ // Fresh retrigger regression: discrete MIDI hits always restart oscillator,
+ // FM, sub, LFO, filter states, and note age instead of resuming mid-pattern.
+ for(int secondNote:{36,37,43,48,60}){
+  Engine resetBass;resetBass.prepare(48000);resetBass.p.mono=true;
+  resetBass.p.freshRetrigger=true;resetBass.p.glide=0.f;resetBass.p.movement=.95f;
+  resetBass.p.growl=.89f;resetBass.p.fm=.78f;resetBass.p.pitchDive=.8f;
+  resetBass.noteOn(36,1.f);render(resetBass,5071);
+  resetBass.noteOff(36);render(resetBass,93);
+  const auto before=resetBass.tick()[0];
+  assert(resetBass.voices[0].phase1>0.f);
+  assert(resetBass.voices[0].lfo>0.f);
+  resetBass.noteOn(secondNote,1.f);
+  const auto& rv=resetBass.voices[0];
+  assert(rv.note==secondNote && rv.holding && rv.stage==1);
+  assert(rv.env==0.f && rv.phase1==0.f && rv.phase2==0.f);
+  assert(rv.phaseFM==0.f && rv.phaseSub==0.f);
+  assert(rv.lfo==0.f && rv.noteAge==0.f);
+  assert(rv.main.ic1==0.f && rv.form1.ic2==0.f);
+  assert(rv.lowBand==0.f && rv.highBand==0.f);
+  assert(resetBass.retriggerFadeRemaining>0);
+  const auto first=resetBass.tick()[0];
+  assert(std::abs(first-before)<.03f);
+  render(resetBass,800);
+  assert(resetBass.voices[0].note==secondNote);
+  assert(resetBass.voices[0].phase1>0.f && resetBass.voices[0].noteAge>0.f);
+ }
+ // Classic continuation remains selectable for old session aesthetics.
+ Engine flowing;flowing.prepare(48000);flowing.p.mono=true;
+ flowing.p.freshRetrigger=false;flowing.p.glide=0.f;
+ flowing.noteOn(48,1.f);render(flowing,4101);flowing.noteOff(48);render(flowing,100);
+ const float oldPhase=flowing.voices[0].phase1,oldLfo=flowing.voices[0].lfo;
+ flowing.noteOn(50,1.f);
+ assert(std::abs(flowing.voices[0].phase1-oldPhase)<1e-6f);
+ assert(std::abs(flowing.voices[0].lfo-oldLfo)<1e-6f);
+ // A genuinely overlapping glide remains phase-continuous with Reset Each Note enabled.
+ Engine linked;linked.prepare(48000);linked.p.mono=true;
+ linked.p.freshRetrigger=true;linked.p.glide=.09f;
+ linked.noteOn(48,1.f);render(linked,4101);
+ const float linkedPhase=linked.voices[0].phase1,linkedLfo=linked.voices[0].lfo;
+ linked.noteOn(49,1.f);
+ assert(std::abs(linked.voices[0].phase1-linkedPhase)<1e-6f);
+ assert(std::abs(linked.voices[0].lfo-linkedLfo)<1e-6f);
+ assert(linked.retriggerFadeRemaining==0);
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
