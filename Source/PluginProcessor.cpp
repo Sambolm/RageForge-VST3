@@ -184,5 +184,92 @@ void RageForgeProcessor::selectDropPreset(int index){
   if(auto* param=state.getParameter(pair.first))
    param->setValueNotifyingHost(param->convertTo0to1(pair.second));
 }
+void RageForgeProcessor::generateDropVariation(int family){
+ // Sound design, not a random value dump: preserve the five bass archetypes.
+ // Different seeds create controlled harmonic, rhythmic, and transient variation.
+ family=juce::jlimit(0,4,family);
+ selectDropPreset(family);
+ uint32_t seed=0x9e3779b9u+((++variationCounter)*747796405u)+(uint32_t)family*2891336453u;
+ auto random=[&seed](){
+   seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;
+   return (float)(seed&0x00ffffffu)/16777215.f;
+ };
+ auto between=[&](float low,float high){return low+(high-low)*random();};
+ auto set=[this](const char* id,float value){
+   if(auto* param=state.getParameter(id))
+    param->setValueNotifyingHost(param->convertTo0to1(value));
+ };
+ // Choose FM, formant and rhythm as a coherent family rather than independently.
+ const int rhythm=(int)(random()*3.999f);
+ constexpr int divisions[4]={1,2,3,4};
+ constexpr int lfoShapes[4]={1,2,3,4};
+ set("lfoDivision",(float)divisions[rhythm]);
+ set("lfoShape",(float)lfoShapes[(rhythm+family)%4]);
+ set("detune",between(.03f,.19f));
+ set("attack",between(.003f,.009f));
+ set("glide",0.f);
+ set("stereo",between(.05f,.18f));
+ set("headroom",between(6.f,10.f));
+ set("mix",between(.83f,.99f));
+ if(family==0){ // organic throat growls, lower center of gravity
+   set("growl",between(.76f,.99f));set("screech",between(.06f,.30f));
+   set("servo",between(.08f,.32f));set("punch",between(.38f,.73f));
+   set("fm",between(.39f,.72f));set("cutoff",between(1100.f,3000.f));
+   set("vowel",between(.67f,.99f));set("movement",between(.70f,.99f));
+   set("resonance",between(.42f,.78f));set("drive",between(.52f,.83f));
+   set("sub",between(.65f,.90f));set("release",between(.10f,.24f));
+ }else if(family==1){ // bright ripping FM screams
+   set("growl",between(.12f,.37f));set("screech",between(.76f,1.f));
+   set("servo",between(.17f,.53f));set("punch",between(.44f,.81f));
+   set("fm",between(.75f,1.f));set("cutoff",between(4700.f,10300.f));
+   set("vowel",between(.09f,.43f));set("movement",between(.48f,.88f));
+   set("resonance",between(.12f,.40f));set("drive",between(.71f,.95f));
+   set("sub",between(.27f,.57f));set("release",between(.08f,.19f));
+ }else if(family==2){ // short pitch sweeps and cyber-mechanical motion
+   set("growl",between(.14f,.50f));set("screech",between(.30f,.67f));
+   set("servo",between(.81f,1.f));set("punch",between(.53f,.91f));
+   set("fm",between(.46f,.87f));set("cutoff",between(1900.f,5500.f));
+   set("vowel",between(.29f,.70f));set("movement",between(.73f,1.f));
+   set("resonance",between(.31f,.65f));set("drive",between(.58f,.87f));
+   set("sub",between(.50f,.77f));set("release",between(.07f,.16f));
+ }else if(family==3){ // clipped, gated riddim attacks
+   set("growl",between(.40f,.80f));set("screech",between(.21f,.53f));
+   set("servo",between(.08f,.44f));set("punch",between(.87f,1.f));
+   set("fm",between(.43f,.80f));set("cutoff",between(1700.f,4600.f));
+   set("vowel",between(.51f,.84f));set("movement",between(.78f,1.f));
+   set("resonance",between(.34f,.70f));set("drive",between(.63f,.89f));
+   set("sub",between(.64f,.91f));set("decay",between(.05f,.12f));
+   set("sustain",between(.05f,.25f));set("release",between(.05f,.11f));
+ }else{ // hybrid, conflicting but musical textures
+   set("growl",between(.64f,.96f));set("screech",between(.55f,.91f));
+   set("servo",between(.42f,.81f));set("punch",between(.44f,.79f));
+   set("fm",between(.63f,.94f));set("cutoff",between(2300.f,6900.f));
+   set("vowel",between(.53f,.91f));set("movement",between(.73f,1.f));
+   set("resonance",between(.39f,.68f));set("drive",between(.69f,.95f));
+   set("sub",between(.54f,.82f));set("release",between(.10f,.22f));
+ }
+ set("shape",between(family==1?.68f:.33f,.96f));
+ set("level",between(.36f,.51f));
+ // Harmonic, periodic custom waves with a controlled number of partials.
+ // Avoid sample-import chops or high-noise waveforms.
+ const float h2=between(.15f,.46f);
+ const float h3=between(.06f,.35f);
+ const float h5=between(.03f,.19f);
+ const float h7=between(.0f,.10f);
+ const float phase=between(.0f,6.2831853f);
+ const float sign=family==1?-1.f:1.f;
+ float wave[rage::Engine::waveSize];
+ float maxAbs=.001f;
+ for(int i=0;i<rage::Engine::waveSize;++i){
+   const float t=2.f*rage::pi*(float)i/rage::Engine::waveSize;
+   wave[i]=std::sin(t)+sign*h2*std::sin(2.f*t+phase)
+          +h3*std::sin(3.f*t-phase*.35f)+h5*std::sin(5.f*t+.3f*phase)
+          +h7*std::sin(7.f*t);
+   maxAbs=std::max(maxAbs,std::abs(wave[i]));
+ }
+ for(int i=0;i<rage::Engine::waveSize;++i)setWavePoint(i,wave[i]/maxAbs);
+ set("waveBlend",between(.56f,.91f));
+ set("waveWarp",between(.08f,.62f));
+}
 juce::AudioProcessorEditor* RageForgeProcessor::createEditor(){return new RageForgeEditor(*this);}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new RageForgeProcessor();}
