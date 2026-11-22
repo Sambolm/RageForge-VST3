@@ -36,6 +36,44 @@ inline float osc(float phase,float dt,float shape){
   if(shape<.6667f)return saw+(pulse-saw)*(shape-.3333f)*3.f;
   return pulse+(tri-pulse)*(shape-.6667f)*3.f;
 }
+// Two-bar, 16th-note drop rhythm. 0 = silence, 1-4 = attack and timbral variation.
+// A single held MIDI note drives every step, so generated patterns never jump pitch.
+struct RhythmPattern {
+ static constexpr int steps=32;
+ std::array<uint8_t,steps> hits{};
+ static RhythmPattern generate(int family,uint32_t seed){
+  // Five intentionally syncopated call/response templates, not note transposition.
+  static constexpr uint8_t patterns[5][32]={
+   {4,0,2,0, 0,2,0,3, 4,0,0,2, 0,3,2,0,
+    4,0,3,0, 0,2,3,0, 4,0,2,0, 3,0,2,0},
+   {4,0,0,2, 3,0,0,0, 4,0,2,0, 0,3,0,2,
+    4,0,0,3, 0,2,0,0, 4,0,2,3, 0,0,3,0},
+   {4,0,3,0, 2,0,0,3, 4,0,2,0, 3,0,2,0,
+    4,0,0,3, 2,0,3,0, 4,0,2,0, 0,3,2,0},
+   {4,0,4,0, 0,3,0,2, 4,0,4,0, 3,0,2,0,
+    4,0,0,4, 3,0,3,0, 4,0,2,3, 4,0,3,0},
+   {4,0,2,3, 0,2,0,4, 0,3,2,0, 4,0,0,2,
+    4,0,3,0, 2,3,0,2, 4,0,2,0, 3,0,4,0}
+  };
+  family=std::max(0,std::min(4,family));
+  RhythmPattern p;
+  for(int i=0;i<steps;++i)p.hits[(size_t)i]=patterns[family][i];
+  auto random=[&seed](){seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;return seed;};
+  // Preserve accents and the two-bar shape; vary offbeats, rests and the turnaround.
+  for(int i=1;i<steps;++i){
+   if(i==16||i%8==0)continue;
+   const uint32_t r=random();
+   if(r%100<19){
+     if(p.hits[(size_t)i]==0){
+       if((r/101)%100<48)p.hits[(size_t)i]=(uint8_t)(1+(r/17)%3);
+     }else if((r/103)%100<35)p.hits[(size_t)i]=0;
+     else p.hits[(size_t)i]=(uint8_t)(1+(r/31)%4);
+   }
+  }
+  p.hits[0]=4;p.hits[16]=4;
+  return p;
+ }
+};
 struct Params {
  float shape=.55f, fm=.30f, detune=.20f, sub=.50f;
  float cutoff=2400, resonance=.18f, vowel=.45f, movement=.55f, rate=2, drive=.50f;
