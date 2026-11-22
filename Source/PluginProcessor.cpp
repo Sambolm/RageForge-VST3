@@ -46,6 +46,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"pitchDive","Laser Dive",0,1,0);
  add(l,"vowelSweep","Vowel Sweep",0,1,0);
  add(l,"midCrunch","Mid Crunch",0,1,0);
+ l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("freshRetrigger",1),"Reset Each Note",true));
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
  return l;
 }
@@ -75,6 +76,7 @@ void RageForgeProcessor::syncParameters(){
  p.growl=val("growl");p.screech=val("screech");p.servo=val("servo");p.punch=val("punch");
  p.fmRatio=val("fmRatio");p.pitchDive=val("pitchDive");
  p.vowelSweep=val("vowelSweep");p.midCrunch=val("midCrunch");
+ p.freshRetrigger=val("freshRetrigger")>.5f;
 }
 void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
  juce::ScopedNoDenormals denormals;
@@ -154,7 +156,7 @@ void RageForgeProcessor::selectPreset(int index){
   {"vowel",v.vow},{"movement",v.mov},{"rate",v.rate},{"drive",v.drive},{"attack",v.a},
   {"decay",v.d},{"sustain",v.s},{"release",v.r},{"stereo",v.spread},{"mix",v.mix},
   {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f},
-  {"waveBlend",0.f},{"waveWarp",0.f},
+  {"waveBlend",0.f},{"waveWarp",0.f},{"freshRetrigger",1.f},
   {"growl",0.f},{"screech",0.f},{"servo",0.f},{"punch",0.f},
   {"fmRatio",0.f},{"pitchDive",0.f},{"vowelSweep",0.f},{"midCrunch",0.f},
   {"lfoDivision", static_cast<float>(std::array<int,8>{3,3,2,5,1,4,1,5}[static_cast<size_t>(juce::jlimit(0,7,index))])},
@@ -183,7 +185,7 @@ void RageForgeProcessor::selectDropPreset(int index){
   {"resonance",p.resonance},{"vowel",p.vowel},{"movement",p.movement},
   {"drive",p.drive},{"attack",p.attack},{"decay",p.decay},
   {"sustain",p.sustain},{"release",p.release},{"level",p.level},
-  {"headroom",p.headroom},{"mono",1.f},{"mix",.97f},{"stereo",.12f},
+  {"headroom",p.headroom},{"mono",1.f},{"freshRetrigger",1.f},{"mix",.97f},{"stereo",.12f},
   {"waveBlend",0.f},{"waveWarp",0.f},{"glide",0.f},
   {"fmRatio",p.screech*.55f},{"pitchDive",p.servo*.62f},
   {"vowelSweep",p.growl*.76f},{"midCrunch",(.35f+.48f*p.screech)},
