@@ -339,6 +339,14 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  // The DSP already uses these settings; the visualization must follow them too.
  lfoDivision.onChange=[this]{repaint();};
  lfoShape.onChange=[this]{repaint();};
+ bassBodySlider.onContextClick=[this]{showAutomationMenu("bassBody");};
+ bassBodySlider.setSliderStyle(juce::Slider::LinearHorizontal);
+ bassBodySlider.setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
+ bassBodySlider.setSliderSnapsToMousePosition(true);
+ bassBodySlider.setTooltip("Add clean low fundamental and audible bass harmonics. Zero preserves the original bass.");
+ addAndMakeVisible(bassBodySlider);
+ bassBodyAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state,"bassBody",bassBodySlider);
+ bassBodySlider.onValueChange=[this]{repaint();};
  waveBlendSlider.onContextClick=[this]{showAutomationMenu("waveBlend");};
  waveWarpSlider.onContextClick=[this]{showAutomationMenu("waveWarp");};
  for(auto* slider:{&waveBlendSlider,&waveWarpSlider}){
@@ -411,6 +419,7 @@ int RageForgeEditor::getControlParameterIndex(juce::Component& component){
   if(const int index=matches(k->slider,k->parameterId); index>=0)return index;
  if(const int index=matches(waveBlendSlider,"waveBlend");index>=0)return index;
  if(const int index=matches(waveWarpSlider,"waveWarp");index>=0)return index;
+ if(const int index=matches(bassBodySlider,"bassBody");index>=0)return index;
  return juce::AudioProcessorEditor::getControlParameterIndex(component);
 }
 void RageForgeEditor::showAutomationMenu(const juce::String& parameterId){
@@ -533,7 +542,12 @@ void RageForgeEditor::paint(juce::Graphics& g){
    }
  }
  g.setColour(glow.withAlpha(.7f));g.setFont(10.f);
- g.drawText("OSCILLATORS  //  DRAWN WAVE + FM PREVIEW",353,305,345,16,juce::Justification::left);
+ g.drawText("OSCILLATOR PREVIEW",353,305,147,16,juce::Justification::left);
+ g.setColour(juce::Colour(0xffa9f48c));
+ g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
+ g.drawText("BASS BODY",502,304,86,18,juce::Justification::centredRight);
+ const float bassValue=processor.state.getRawParameterValue("bassBody")->load();
+ g.drawText(juce::String(bassValue,2),692,304,39,18,juce::Justification::centredRight);
  // LFO monitor: constrain all drawing INSIDE the monitor viewport.
  // Rapid rates show one beat instead of 32 overlapping cycles in a single bar.
  const auto graph=juce::Rectangle<float>(783.f,258.f,256.f,52.f);
@@ -646,6 +660,7 @@ void RageForgeEditor::resized(){
  waveDrawing.setBounds(scaled(39,194,260,69));
  waveBlendSlider.setBounds(scaled(131,265,124,27));
  waveWarpSlider.setBounds(scaled(131,294,124,27));
+ bassBodySlider.setBounds(scaled(591,301,98,24));
  waveBlendValue.setBounds(scaled(256,265,45,27));
  waveWarpValue.setBounds(scaled(256,294,45,27));
  waveBlendValue.setFont(juce::Font(juce::FontOptions(juce::jmax(9.f,12.f*scale),juce::Font::bold)));
