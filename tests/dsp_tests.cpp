@@ -132,5 +132,39 @@ int main(){
   legato.noteOff(60);
   assert(legato.voices[0].holding);
  }
+ // Drop Lab must actually transform audio. Zero macros retain legacy engine output.
+ const auto bassTest=[](float growl,float screech,float servo,float punch){
+   Engine e;e.prepare(48000);e.p.growl=growl;e.p.screech=screech;
+   e.p.servo=servo;e.p.punch=punch;e.p.shape=.66f;e.p.fm=.57f;
+   e.p.cutoff=2600.f;e.p.movement=.82f;e.p.vowel=.73f;
+   e.noteOn(36,1.f);
+   std::vector<float> out(12000);
+   for(auto &v:out){v=e.tick()[0];assert(std::isfinite(v)&&std::abs(v)<=.892f);}
+   return out;
+ };
+ const auto legacy=bassTest(0,0,0,0);
+ const std::array<std::array<float,4>,5> macros{{
+  {1.f,0.f,0.f,0.f},{0.f,1.f,0.f,0.f},{0.f,0.f,1.f,0.f},
+  {0.f,0.f,0.f,1.f},{.8f,.7f,.6f,.5f}
+ }};
+ std::array<std::vector<float>,5> bassOutputs;
+ for(size_t i=0;i<macros.size();++i){
+   bassOutputs[i]=bassTest(macros[i][0],macros[i][1],macros[i][2],macros[i][3]);
+   double diffBass=0;
+   for(size_t j=0;j<legacy.size();++j){
+     const double d=(double)bassOutputs[i][j]-(double)legacy[j];
+     diffBass+=d*d;
+   }
+   assert(diffBass>.0001);
+ }
+ for(size_t i=0;i<bassOutputs.size();++i)
+  for(size_t j=i+1;j<bassOutputs.size();++j){
+   double diffBass=0;
+   for(size_t k=0;k<bassOutputs[i].size();++k){
+    const double d=(double)bassOutputs[i][k]-(double)bassOutputs[j][k];
+    diffBass+=d*d;
+   }
+   assert(diffBass>.0001);
+  }
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
