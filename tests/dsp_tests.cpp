@@ -255,7 +255,6 @@ int main(){
    rhythm.start(41,.95f);
    const float rate=48000.f,bpm=140.f;
    int totalOn=0,totalOff=0;
-   int previousStep=0;
    for(int i=0;i<(int)(rate*60.f/bpm*8.f);++i){
      auto ev=rhythm.tick(rate,bpm,pattern);
      if(ev.on){
@@ -265,7 +264,6 @@ int main(){
      }
      if(ev.off)++totalOff;
      assert(rhythm.step>=0&&rhythm.step<32);
-     previousStep=rhythm.step;
    }
    assert(totalOn>=hits-1 && totalOn<=hits+1);
    assert(totalOff>=totalOn-1);
