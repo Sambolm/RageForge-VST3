@@ -166,5 +166,33 @@ int main(){
    }
    assert(diffBass>.0001);
   }
+ // Reference-inspired bass transformations must each produce distinct samples,
+ // remain finite, and respect the output safety ceiling.
+ auto signatureRender=[](float fmRatio,float pitchDive,float vowelSweep,float midCrunch){
+   Engine synth;synth.prepare(44100);
+   synth.p.fm=.74f;synth.p.vowel=.82f;synth.p.movement=.82f;
+   synth.p.growl=.58f;synth.p.screech=.42f;synth.p.punch=.48f;
+   synth.p.fmRatio=fmRatio;synth.p.pitchDive=pitchDive;
+   synth.p.vowelSweep=vowelSweep;synth.p.midCrunch=midCrunch;
+   synth.noteOn(33,1.f);
+   std::vector<float> samples(10000);
+   for(auto &sample:samples){
+     sample=synth.tick()[0];
+     assert(std::isfinite(sample)&&std::abs(sample)<=.892f);
+   }
+   return samples;
+ };
+ const auto signatureBase=signatureRender(0,0,0,0);
+ for(const auto &variation:std::array<std::array<float,4>,4>{{
+   {{1.f,0.f,0.f,0.f}},{{0.f,1.f,0.f,0.f}},
+   {{0.f,0.f,1.f,0.f}},{{0.f,0.f,0.f,1.f}}
+ }}){
+   auto output=signatureRender(variation[0],variation[1],variation[2],variation[3]);
+   double difference=0;
+   for(size_t k=0;k<output.size();++k){
+     const double d=(double)signatureBase[k]-output[k];difference+=d*d;
+   }
+   assert(difference>.0001);
+ }
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
