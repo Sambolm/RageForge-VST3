@@ -77,6 +77,7 @@ private:
  };
  std::vector<std::unique_ptr<Knob>> knobs;
  juce::ToggleButton mono{"MONO / LEGATO"};
- std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> monoAttachment;
+ juce::ToggleButton resetEachNote{"RESET EACH NOTE"};
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> monoAttachment,resetEachNoteAttachment;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RageForgeEditor)
 };
