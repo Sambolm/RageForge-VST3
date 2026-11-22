@@ -46,6 +46,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"pitchDive","Laser Dive",0,1,0);
  add(l,"vowelSweep","Vowel Sweep",0,1,0);
  add(l,"midCrunch","Mid Crunch",0,1,0);
+ l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("rhythmGrid",1),"Rhythm Grid",juce::StringArray{"1/8","1/16","1/32","1/16 TRIPLET"},1));
+ l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("rhythmDensity",1),"Rhythm Density",juce::StringArray{"Sparse","Balanced","Busy"},1));
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("rhythmEnabled",1),"Rhythm On",false));
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("freshRetrigger",1),"Reset Each Note",true));
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
@@ -53,7 +55,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
 }
 RageForgeProcessor::RageForgeProcessor():AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),state(*this,nullptr,"RAGEFORGE",createLayout()){
  for(int i=0;i<rage::Engine::waveSize;++i)userWave[(size_t)i].store(std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
- const auto startPattern=rage::RhythmPattern::generate(0,0x7f119ab4u);
+ const auto startPattern=rage::RhythmPattern::generate(0,0x7f119ab4u,1,1);
  for(int i=0;i<rage::RhythmPattern::steps;++i)rhythmSteps[(size_t)i].store(startPattern.hits[(size_t)i]);
 }
 bool RageForgeProcessor::isBusesLayoutSupported(const BusesLayout& b) const {return b.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
@@ -96,6 +98,7 @@ void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Midi
  }
  wasRhythmEnabled=rhythmEnabled;
  rage::RhythmPattern currentRhythm;
+ const int rhythmGrid=juce::jlimit(0,3,(int)state.getRawParameterValue("rhythmGrid")->load());
  if(rhythmEnabled)
   for(int n=0;n<rage::RhythmPattern::steps;++n)
    currentRhythm.hits[(size_t)n]=rhythmSteps[(size_t)n].load(std::memory_order_relaxed);
@@ -129,7 +132,7 @@ void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Midi
   }
   engine.p=baseParams;
   if(rhythmEnabled){
-   const auto ev=rhythmPlayer.tick(engine.sr,engine.beatBpm,currentRhythm);
+   const auto ev=rhythmPlayer.tick(engine.sr,engine.beatBpm,currentRhythm,rhythmGrid);
    rhythmStepDisplay.store(rhythmPlayer.step,std::memory_order_relaxed);
    if(ev.off)engine.noteOff(rhythmPlayer.note);
    if(ev.on){
@@ -189,6 +192,9 @@ void RageForgeProcessor::setStateInformation(const void* data,int bytes){
    const auto rhythmSaved=juce::StringArray::fromTokens(restored.getProperty("rhythm32").toString(),",","");
    if(rhythmSaved.size()==rage::RhythmPattern::steps)
     for(int i=0;i<rage::RhythmPattern::steps;++i)
+     rhythmSteps[(size_t)i].store((uint8_t)juce::jlimit(0,4,rhythmSaved[i].getIntValue()));
+   else if(rhythmSaved.size()==32) // legacy 32-step projects
+    for(int i=0;i<32;++i)
      rhythmSteps[(size_t)i].store((uint8_t)juce::jlimit(0,4,rhythmSaved[i].getIntValue()));
    restored.removeProperty("rhythm32",nullptr);
    state.replaceState(restored);
@@ -352,7 +358,9 @@ void RageForgeProcessor::generateDropVariation(int family){
 void RageForgeProcessor::generateRhythm(int family){
  const uint32_t seed=0x352bfa91u+((++rhythmCounter)*747796405u)
       +(uint32_t)juce::jlimit(0,4,family)*2891336453u;
- const auto pattern=rage::RhythmPattern::generate(family,seed);
+ const int grid=juce::jlimit(0,3,(int)state.getRawParameterValue("rhythmGrid")->load());
+ const int density=juce::jlimit(0,2,(int)state.getRawParameterValue("rhythmDensity")->load());
+ const auto pattern=rage::RhythmPattern::generate(family,seed,grid,density);
  for(int i=0;i<rage::RhythmPattern::steps;++i)
    rhythmSteps[(size_t)i].store(pattern.hits[(size_t)i],std::memory_order_relaxed);
 }
