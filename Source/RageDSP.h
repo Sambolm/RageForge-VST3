@@ -111,7 +111,15 @@ struct Engine {
  void setTempo(float bpm){beatBpm=clamp(bpm,30.f,300.f);}
  void noteOn(int n,float vel){
   n=std::max(0,std::min(n,127));const float hz=440.f*std::pow(2.f,(n-69)/12.f);
-  if(p.mono){auto &v=voices[0];v.start(n,vel,0,hz,v.stage!=0 && p.glide>.001f);return;}
+  if(p.mono){
+   auto &v=voices[0];
+   // Legato applies only while the previous MIDI note is actually held.
+   // A voice in its release tail must start a fresh envelope on the next note.
+   // Otherwise pitch changes can sound like a delayed double hit or "flam".
+   const bool trueLegato=v.holding && v.stage!=0 && p.glide>.001f;
+   v.start(n,vel,0,hz,trueLegato);
+   return;
+  }
   Voice* v=nullptr;for(auto &a:voices)if(a.stage==0){v=&a;break;}
   if(!v){v=&voices[static_cast<size_t>(nextVoice++%maxVoices)];}
   v->start(n,vel,(nextVoice%2==0?-.35f:.35f),hz,false);
