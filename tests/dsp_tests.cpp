@@ -297,5 +297,25 @@ int main(){
      assert(player.step==0||player.step==steps-1); // two-bar wrap
    }
  }
+ // Bass Body: fundamental reinforcement must be audible, controllable,
+ // non-clipping, and inactive at zero for existing projects.
+ for(int bassNote:{29,36,41,48,53}){
+  Engine original;original.prepare(48000);
+  original.p.sub=.45f;original.p.bassBody=0.f;original.noteOn(bassNote,.9f);
+  Engine reinforced;reinforced.prepare(48000);
+  reinforced.p.sub=.45f;reinforced.p.bassBody=.85f;reinforced.noteOn(bassNote,.9f);
+  double lowDifference=0;
+  for(int i=0;i<12000;++i){
+   const float a=original.tick()[0],b=reinforced.tick()[0];
+   assert(std::isfinite(a)&&std::isfinite(b));
+   assert(std::abs(a)<=.892f&&std::abs(b)<=.892f);
+   const double d=(double)b-(double)a;
+   lowDifference+=d*d;
+  }
+  assert(lowDifference>.001);
+ }
+ Engine bodyA;bodyA.prepare(48000);bodyA.noteOn(41,1.f);
+ Engine bodyB;bodyB.prepare(48000);bodyB.p.bassBody=0.f;bodyB.noteOn(41,1.f);
+ for(int i=0;i<4800;++i)assert(bodyA.tick()==bodyB.tick());
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
