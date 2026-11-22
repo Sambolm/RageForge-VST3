@@ -216,12 +216,32 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  preset.setTextWhenNothingSelected("SELECT BASS PRESET");
  preset.onChange=[this]{ if(preset.getSelectedId()>0){ processor.selectPreset(preset.getSelectedId()-1); subtitle.setText("LOADED: "+preset.getText()+"  |  Play a new note to audition.",juce::dontSendNotification); }};
  addAndMakeVisible(preset);
+ const juce::StringArray dropNames{"Beast Growl","Razor Screech","Servo Machine","Impact Chop","Mutant Hybrid"};
+ dropPreset.addItemList(dropNames,1);
+ dropPreset.setTextWhenNothingSelected("CHOOSE DROP PATCH");
+ dropPreset.onChange=[this]{
+  if(dropPreset.getSelectedId()>0){
+   processor.selectDropPreset(dropPreset.getSelectedId()-1);
+   subtitle.setText("DROP LAB: "+dropPreset.getText(),juce::dontSendNotification);
+   repaint();
+  }
+ };
+ addAndMakeVisible(dropPreset);
+ dropPreset.setVisible(false);
+ dropPageButton.onClick=[this]{
+  dropLabPage=!dropLabPage;
+  updatePage();
+ };
+ dropPageButton.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff214725));
+ dropPageButton.setColour(juce::TextButton::textColourOffId,juce::Colour(0xffb5ff6a));
+ addAndMakeVisible(dropPageButton);
  const std::pair<const char*,const char*> controls[]{
   {"shape","WAVE MORPH"},{"fm","FM BITE"},{"detune","DETUNE"},{"sub","SUB LEVEL"},
   {"cutoff","FILTER"},{"resonance","RESONANCE"},{"vowel","VOCAL"},{"movement","MOVEMENT"},
   {"drive","DRIVE"},{"attack","ATTACK"},{"decay","DECAY"},
   {"sustain","SUSTAIN"},{"release","RELEASE"},{"stereo","STEREO"},{"mix","EFFECT MIX"},
-  {"glide","GLIDE"},{"level","OUTPUT"},{"headroom","HEADROOM dB"}
+  {"glide","GLIDE"},{"level","OUTPUT"},{"headroom","HEADROOM dB"},
+  {"growl","GROWL"},{"screech","SCREECH"},{"servo","SERVO"},{"punch","PUNCH"}
  };
  for(auto [id,label]:controls){
   auto k=std::make_unique<Knob>();
@@ -306,10 +326,22 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  neon.setColour(juce::PopupMenu::textColourId,juce::Colour(0xffeaffd9));
  // Size the editor only AFTER all controls exist, so resized() positions every knob.
  for(auto &k:knobs) k->slider.onValueChange=[this]{repaint();};
+ updatePage();
  setResizable(true,true);
  setResizeLimits(740,548,1450,1074);
  setSize(890,659);
  startTimerHz(30); // UI-only refresh; no timer or drawing code runs on the audio thread.
+}
+void RageForgeEditor::updatePage(){
+ dropPageButton.setButtonText(dropLabPage?"SYNTH CONTROLS":"DROP LAB");
+ dropPreset.setVisible(dropLabPage);
+ for(size_t i=0;i<knobs.size();++i){
+  const bool visible=dropLabPage?(i>=18):(i<18);
+  knobs[i]->slider.setVisible(visible);
+  knobs[i]->label.setVisible(visible);
+ }
+ resized();
+ repaint();
 }
 int RageForgeEditor::getControlParameterIndex(juce::Component& component){
  auto matches=[&](juce::Component& c, const juce::String& id)->int {
@@ -484,10 +516,27 @@ void RageForgeEditor::paint(juce::Graphics& g){
  }
  g.setColour(glow.withAlpha(.9f));g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
  g.drawText(zoomToBeat?"LFO PREVIEW  /  ONE BEAT":"LFO PREVIEW  /  ONE BAR",789,244,244,12,juce::Justification::centredLeft);
- const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
+ if(dropLabPage){
+  g.setColour(juce::Colour(0xff0a140b));g.fillRoundedRectangle(22.f,352.f,1036.f,401.f,9.f);
+  g.setColour(lime.withAlpha(.4f));g.drawRoundedRectangle(22.f,352.f,1036.f,401.f,9.f,1.f);
+  g.setColour(glow);g.setFont(juce::Font(juce::FontOptions(16.f,juce::Font::bold)));
+  g.drawText("DROP LAB  /  DESIGN MONSTROUS BASSES",45,363,700,25,juce::Justification::centredLeft);
+  g.setFont(juce::Font(juce::FontOptions(12.f,juce::Font::bold)));
+  const char* explain[]{"VOWEL SWEEPS + FORMANTS","METALLIC FM TEAR","ROBOTIC PITCH MOTION","STAB TRANSIENT ATTACK"};
+  for(int i=0;i<4;++i){
+   const float x=42.f+i*252.f;
+   g.setColour(juce::Colour(0xff112113));g.fillRoundedRectangle(x,413.f,238.f,315.f,9.f);
+   g.setColour(lime.withAlpha(.20f));g.drawRoundedRectangle(x,413.f,238.f,315.f,9.f,1.f);
+   g.setColour(glow.withAlpha(.8f));g.drawText(explain[i],(int)x+6,643,225,23,juce::Justification::centred);
+  }
+  g.setColour(juce::Colour(0xff9ccc8f));g.setFont(juce::Font(juce::FontOptions(12.f)));
+  g.drawText("All four macros are automatable. Combine them, then switch to SYNTH CONTROLS for fine tuning.",
+             50,698,965,20,juce::Justification::centred);
+ }else{
+  const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
                       "MOVEMENT  /  FILTER & ENVELOPES",
                       "FINAL SHAPE  /  MIX & OUTPUT"};
- for(int row=0;row<3;++row){
+  for(int row=0;row<3;++row){
    float y=352.f+row*134.f;
    g.setColour(juce::Colour(0xff0b150c));g.fillRoundedRectangle(22.f,y,1036.f,125.f,9.f);
    g.setColour(lime.withAlpha(.36f));g.drawRoundedRectangle(22.f,y,1036.f,125.f,9.f,1.2f);
@@ -495,6 +544,7 @@ void RageForgeEditor::paint(juce::Graphics& g){
    g.drawText(titles[row],34,(int)y+5,610,19,juce::Justification::left);
    g.setColour(lime.withAlpha(.11f));
    for(int col=1;col<6;++col)g.drawVerticalLine(22+col*172,y+28,y+121);
+  }
  }
  g.setColour(lime.withAlpha(.36f));g.drawLine(22.f,765.f,1058.f,765.f,2.f);
  g.setColour(juce::Colour(0xffa7d59a));g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
@@ -522,15 +572,24 @@ void RageForgeEditor::resized(){
  tagline.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,13.f*scale))));
  tagline.setBounds(scaled(39,81,680,20));
  preset.setBounds(scaled(787,25,257,38));
+ dropPageButton.setBounds(scaled(518,118,177,23));
+ dropPreset.setBounds(scaled(760,359,265,31));
  subtitle.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,12.f*scale))));
  subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
-   int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
-   int x=25+col*172,y=376+row*134;
-   knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
-   knobs[i]->label.setBounds(scaled(x,y,165,18));
-   // Keep the full dial AND its numeric box inside the 125px row panel.
-   knobs[i]->slider.setBounds(scaled(x+20,y+20,128,77));
+   if(i>=18){
+     const int col=static_cast<int>(i-18);
+     const int x=51+col*252;
+     knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(11.f,17.f*scale),juce::Font::bold)));
+     knobs[i]->label.setBounds(scaled(x,453,214,28));
+     knobs[i]->slider.setBounds(scaled(x+27,491,159,137));
+   }else{
+     int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
+     int x=25+col*172,y=376+row*134;
+     knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
+     knobs[i]->label.setBounds(scaled(x,y,165,18));
+     knobs[i]->slider.setBounds(scaled(x+20,y+20,128,77));
+   }
  }
  lfoDivisionLabel.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
  lfoShapeLabel.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,11.f*scale),juce::Font::bold)));
