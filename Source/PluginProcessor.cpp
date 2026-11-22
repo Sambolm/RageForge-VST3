@@ -18,6 +18,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"fm","FM Aggression",0,1,.30);
  add(l,"detune","Detune",0,1,.20);
  add(l,"sub","Sub Layer",0,1,.50);
+ add(l,"bassBody","Bass Body",0,1,0);
  add(l,"cutoff","Filter Cutoff",60,16000,2400,1700);
  add(l,"resonance","Resonance",0,.94,.18);
  add(l,"vowel","Vocal Formant",0,1,.45);
@@ -78,7 +79,7 @@ void RageForgeProcessor::syncParameters(){
  p.attack=val("attack");p.decay=val("decay");p.sustain=val("sustain");p.release=val("release");
  p.stereo=val("stereo");p.mix=val("mix");p.glide=val("glide");p.level=val("level");
  p.headroomDb=val("headroom");p.mono=val("mono")>.5f;
- p.waveBlend=val("waveBlend");p.waveWarp=val("waveWarp");
+ p.waveBlend=val("waveBlend");p.waveWarp=val("waveWarp");p.bassBody=val("bassBody");
  p.growl=val("growl");p.screech=val("screech");p.servo=val("servo");p.punch=val("punch");
  p.fmRatio=val("fmRatio");p.pitchDive=val("pitchDive");
  p.vowelSweep=val("vowelSweep");p.midCrunch=val("midCrunch");
@@ -226,7 +227,7 @@ void RageForgeProcessor::selectPreset(int index){
   {"decay",v.d},{"sustain",v.s},{"release",v.r},{"stereo",v.spread},{"mix",v.mix},
   {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f},
   {"waveBlend",0.f},{"waveWarp",0.f},{"freshRetrigger",1.f},
-  {"growl",0.f},{"screech",0.f},{"servo",0.f},{"punch",0.f},
+  {"growl",0.f},{"screech",0.f},{"servo",0.f},{"punch",0.f},{"bassBody",0.f},
   {"fmRatio",0.f},{"pitchDive",0.f},{"vowelSweep",0.f},{"midCrunch",0.f},
   {"lfoDivision", static_cast<float>(std::array<int,8>{3,3,2,5,1,4,1,5}[static_cast<size_t>(juce::jlimit(0,7,index))])},
   {"lfoShape", static_cast<float>(std::array<int,8>{4,0,2,1,4,1,3,0}[static_cast<size_t>(juce::jlimit(0,7,index))])}
@@ -250,7 +251,7 @@ void RageForgeProcessor::selectDropPreset(int index){
  const auto& p=patches[static_cast<size_t>(juce::jlimit(0,4,index))];
  const std::pair<const char*,float> values[]{
   {"growl",p.growl},{"screech",p.screech},{"servo",p.servo},{"punch",p.punch},
-  {"shape",p.shape},{"fm",p.fm},{"sub",p.sub},{"cutoff",p.cutoff},
+  {"shape",p.shape},{"fm",p.fm},{"sub",p.sub},{"bassBody",.60f},{"cutoff",p.cutoff},
   {"resonance",p.resonance},{"vowel",p.vowel},{"movement",p.movement},
   {"drive",p.drive},{"attack",p.attack},{"decay",p.decay},
   {"sustain",p.sustain},{"release",p.release},{"level",p.level},
@@ -330,6 +331,7 @@ void RageForgeProcessor::generateDropVariation(int family){
  }
  set("shape",between(family==1?.68f:.33f,.96f));
  set("level",between(.36f,.51f));
+ set("bassBody",between(family==1?.35f:.48f,family==1?.64f:.86f));
  // Harmonic, periodic custom waves with a controlled number of partials.
  // Avoid sample-import chops or high-noise waveforms.
  const float h2=between(.15f,.46f);
