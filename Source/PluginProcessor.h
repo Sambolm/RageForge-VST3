@@ -28,6 +28,7 @@ public:
  void setStateInformation(const void*,int) override;
  static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
  void selectPreset(int);
+ void selectDropPreset(int);
  void setWavePoint(int index,float value);
  float getWavePoint(int index) const;
  bool isWavePlaying() const noexcept {return wavePlaying.load(std::memory_order_relaxed);}
