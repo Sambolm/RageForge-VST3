@@ -67,5 +67,30 @@ int main(){
    previousCycle=v.scopeCycle;
  }
  assert(sawWrapping>30);
+ // Regression: released notes must not legato-glide through an old release tail.
+ Engine transition;transition.prepare(48000);transition.p.mono=true;transition.p.glide=.08f;
+ transition.p.release=.22f;
+ transition.noteOn(60,1.f);render(transition,3600);
+ transition.noteOff(60);render(transition,650);
+ assert(transition.voices[0].stage==4 && !transition.voices[0].holding);
+ transition.noteOn(61,1.f);
+ assert(transition.voices[0].note==61);
+ assert(transition.voices[0].holding);
+ assert(transition.voices[0].stage==1); // must REATTACK, not continue releasing
+ const float envBefore=transition.voices[0].env;
+ render(transition,250);
+ assert(transition.voices[0].env>envBefore);
+ assert(transition.voices[0].stage!=4);
+ // When C and C# are genuinely overlapping, legato should preserve the envelope.
+ Engine overlap;overlap.prepare(48000);overlap.p.mono=true;overlap.p.glide=.08f;
+ overlap.noteOn(60,1.f);render(overlap,2400);
+ const float heldEnv=overlap.voices[0].env;
+ const int heldStage=overlap.voices[0].stage;
+ overlap.noteOn(61,1.f);
+ assert(overlap.voices[0].stage==heldStage);
+ assert(std::abs(overlap.voices[0].env-heldEnv)<1e-5f);
+ // The old note-off must never silence the newer held note.
+ overlap.noteOff(60);
+ assert(overlap.voices[0].holding && overlap.voices[0].note==61);
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
