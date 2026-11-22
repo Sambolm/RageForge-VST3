@@ -46,16 +46,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"pitchDive","Laser Dive",0,1,0);
  add(l,"vowelSweep","Vowel Sweep",0,1,0);
  add(l,"midCrunch","Mid Crunch",0,1,0);
+ l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("rhythmEnabled",1),"Rhythm On",false));
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("freshRetrigger",1),"Reset Each Note",true));
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
  return l;
 }
 RageForgeProcessor::RageForgeProcessor():AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),state(*this,nullptr,"RAGEFORGE",createLayout()){
  for(int i=0;i<rage::Engine::waveSize;++i)userWave[(size_t)i].store(std::sin(2.f*rage::pi*(float)i/rage::Engine::waveSize));
+ const auto startPattern=rage::RhythmPattern::generate(0,0x7f119ab4u);
+ for(int i=0;i<rage::RhythmPattern::steps;++i)rhythmSteps[(size_t)i].store(startPattern.hits[(size_t)i]);
 }
 bool RageForgeProcessor::isBusesLayoutSupported(const BusesLayout& b) const {return b.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
 void RageForgeProcessor::prepareToPlay(double s,int){
  engine.prepare(static_cast<float>(s));
+ rhythmPlayer.reset();rhythmStepDisplay.store(0);rhythmTone=0;wasRhythmEnabled=false;
  wavePlaying.store(false,std::memory_order_relaxed);
  wavePhase.store(0.f,std::memory_order_relaxed);
  waveScopeProgress.store(0.f,std::memory_order_relaxed);
@@ -116,6 +120,9 @@ void RageForgeProcessor::getStateInformation(juce::MemoryBlock& dest){
  for(int k=0;k<rage::Engine::waveSize;++k)
    points.add(juce::String(userWave[(size_t)k].load(std::memory_order_relaxed),7));
  snapshot.setProperty("userWave64",points.joinIntoString(","),nullptr);
+ juce::StringArray rhythmList;
+ for(int i=0;i<rage::RhythmPattern::steps;++i)rhythmList.add(juce::String((int)rhythmSteps[(size_t)i].load()));
+ snapshot.setProperty("rhythm32",rhythmList.joinIntoString(","),nullptr);
  auto xml=snapshot.createXml();copyXmlToBinary(*xml,dest);
 }
 void RageForgeProcessor::setStateInformation(const void* data,int bytes){
@@ -128,6 +135,11 @@ void RageForgeProcessor::setStateInformation(const void* data,int bytes){
        setWavePoint(k,list[k].getFloatValue());
    }
    restored.removeProperty("userWave64",nullptr);
+   const auto rhythmSaved=juce::StringArray::fromTokens(restored.getProperty("rhythm32").toString(),",","");
+   if(rhythmSaved.size()==rage::RhythmPattern::steps)
+    for(int i=0;i<rage::RhythmPattern::steps;++i)
+     rhythmSteps[(size_t)i].store((uint8_t)juce::jlimit(0,4,rhythmSaved[i].getIntValue()));
+   restored.removeProperty("rhythm32",nullptr);
    state.replaceState(restored);
  }
 }
@@ -285,6 +297,17 @@ void RageForgeProcessor::generateDropVariation(int family){
  set("pitchDive",between(family==2?.45f:.08f,family==2?.97f:.67f));
  set("vowelSweep",between(family==0?.62f:.13f,family==0?.97f:.84f));
  set("midCrunch",between(family==3?.57f:.28f,family==3?.95f:.88f));
+}
+void RageForgeProcessor::generateRhythm(int family){
+ const uint32_t seed=0x352bfa91u+((++rhythmCounter)*747796405u)
+      +(uint32_t)juce::jlimit(0,4,family)*2891336453u;
+ const auto pattern=rage::RhythmPattern::generate(family,seed);
+ for(int i=0;i<rage::RhythmPattern::steps;++i)
+   rhythmSteps[(size_t)i].store(pattern.hits[(size_t)i],std::memory_order_relaxed);
+}
+int RageForgeProcessor::getRhythmStep(int i) const{
+ return i>=0&&i<rage::RhythmPattern::steps
+   ?(int)rhythmSteps[(size_t)i].load(std::memory_order_relaxed):0;
 }
 juce::AudioProcessorEditor* RageForgeProcessor::createEditor(){return new RageForgeEditor(*this);}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new RageForgeProcessor();}
