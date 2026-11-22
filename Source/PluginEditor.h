@@ -7,7 +7,9 @@ public:
  ~RageForgeEditor() override;
  void paint(juce::Graphics&) override;
  void resized() override;
+ int getControlParameterIndex(juce::Component&) override;
 private:
+ void showAutomationMenu(const juce::String& parameterId);
  void timerCallback() override;
  bool playheadPreviouslyVisible=false;
  class NeonLookAndFeel final : public juce::LookAndFeel_V4 {
@@ -35,7 +37,26 @@ private:
   void placeGridPoint(juce::Point<float>);
  };
  WaveDraw waveDrawing;
- juce::Slider waveBlendSlider,waveWarpSlider;
+ class AutomatableSlider final : public juce::Slider {
+ public:
+  std::function<void()> onContextClick;
+  void mouseDown(const juce::MouseEvent& e) override {
+   if(e.mods.isPopupMenu()) {
+    if(onContextClick)onContextClick();
+    return;
+   }
+   juce::Slider::mouseDown(e);
+  }
+  void mouseDrag(const juce::MouseEvent& e) override {
+   if(e.mods.isPopupMenu())return;
+   juce::Slider::mouseDrag(e);
+  }
+  void mouseUp(const juce::MouseEvent& e) override {
+   if(e.mods.isPopupMenu())return;
+   juce::Slider::mouseUp(e);
+  }
+ };
+ AutomatableSlider waveBlendSlider,waveWarpSlider;
  juce::Label waveBlendValue,waveWarpValue;
  std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> waveBlendAttachment,waveWarpAttachment;
  juce::ComboBox preset;
@@ -44,7 +65,8 @@ private:
  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> divisionAttachment, shapeAttachment;
  juce::Label brand,tagline,subtitle;
  struct Knob {
-  juce::Slider slider;
+  AutomatableSlider slider;
+  juce::String parameterId;
   juce::Label label;
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
  };
