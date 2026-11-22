@@ -345,8 +345,8 @@ void RageForgeEditor::showAutomationMenu(const juce::String& parameterId){
       if(selected!=1||safe==nullptr)return;
       juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
        "Automate RageForge",
-       "Move the RageForge knob slightly, then in FL Studio choose:\\n"
-       "Tools > Last tweaked > Create automation clip.\\n\\n"
+       "Move the RageForge knob slightly, then in FL Studio choose:\n"
+       "Tools > Last tweaked > Create automation clip.\n\n"
        "The automation clip will appear in the Playlist.");
     });
 }
