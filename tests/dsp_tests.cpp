@@ -237,5 +237,43 @@ int main(){
  assert(std::abs(linked.voices[0].phase1-linkedPhase)<1e-6f);
  assert(std::abs(linked.voices[0].lfo-linkedLfo)<1e-6f);
  assert(linked.retriggerFadeRemaining==0);
+ // Two-bar signature rhythm generator: tempo-locked, accented, with rests,
+ // and no unintended pitch changes between rhythmic events.
+ for(int family=0;family<5;++family){
+   auto pattern=rage::RhythmPattern::generate(family,0xabcdef01u+(uint32_t)family);
+   auto variant=rage::RhythmPattern::generate(family,0xa7196fb4u+(uint32_t)family);
+   assert(pattern.hits[0]==4&&pattern.hits[16]==4);
+   int rests=0,hits=0,changes=0;
+   for(int i=0;i<rage::RhythmPattern::steps;++i){
+     const auto v=pattern.hits[(size_t)i];
+     assert(v<=4);
+     if(v==0)++rests;else ++hits;
+     if(v!=variant.hits[(size_t)i])++changes;
+   }
+   assert(rests>7 && hits>8 && changes>0);
+   rage::RhythmPlayer rhythm;
+   rhythm.start(41,.95f);
+   const float rate=48000.f,bpm=140.f;
+   int totalOn=0,totalOff=0;
+   int previousStep=0;
+   for(int i=0;i<(int)(rate*60.f/bpm*8.f);++i){
+     auto ev=rhythm.tick(rate,bpm,pattern);
+     if(ev.on){
+       assert(ev.tone>0&&ev.tone<=4);
+       assert(rhythm.note==41); // all hits use the held note
+       ++totalOn;
+     }
+     if(ev.off)++totalOff;
+     assert(rhythm.step>=0&&rhythm.step<32);
+     previousStep=rhythm.step;
+   }
+   assert(totalOn>=hits-1 && totalOn<=hits+1);
+   assert(totalOff>=totalOn-1);
+   rhythm.stop(41);
+   bool accidentallyRestarted=false;
+   for(int i=0;i<20000;++i)
+     if(rhythm.tick(rate,bpm,pattern).on)accidentallyRestarted=true;
+   assert(!accidentallyRestarted);
+ }
  std::cout<<"PASS: finite stereo synthesis, output ceiling, note-off release, strongly differentiated timbres, polyphony, sub bass. diff="<<diff<<"\n";
 }
