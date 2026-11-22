@@ -265,6 +265,16 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  rhythmEnabledAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
    p.state,"rhythmEnabled",rhythmEnabled);
  rhythmEnabled.setVisible(false);
+ rhythmGrid.addItemList(juce::StringArray{"1/8","1/16","1/32","1/16 TRIPLET"},1);
+ rhythmDensity.addItemList(juce::StringArray{"Sparse","Balanced","Busy"},1);
+ rhythmGrid.setTooltip("Choose eighth, sixteenth, thirty-second or sixteenth-triplet rhythmic subdivision.");
+ rhythmDensity.setTooltip("Choose sparse, balanced or busy generated drop phrasing.");
+ addAndMakeVisible(rhythmGrid);addAndMakeVisible(rhythmDensity);
+ rhythmGridAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"rhythmGrid",rhythmGrid);
+ rhythmDensityAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state,"rhythmDensity",rhythmDensity);
+ rhythmGrid.onChange=[this]{repaint();};
+ rhythmDensity.onChange=[this]{repaint();};
+ rhythmGrid.setVisible(false);rhythmDensity.setVisible(false);
  dropPageButton.onClick=[this]{
   dropLabPage=!dropLabPage;
   updatePage();
@@ -380,6 +390,7 @@ void RageForgeEditor::updatePage(){
  generateBassButton.setVisible(dropLabPage);
  generateRhythmButton.setVisible(dropLabPage);
  rhythmEnabled.setVisible(dropLabPage);
+ rhythmGrid.setVisible(dropLabPage);rhythmDensity.setVisible(dropLabPage);
  for(size_t i=0;i<knobs.size();++i){
   const bool visible=dropLabPage?(i>=18):(i<18);
   knobs[i]->slider.setVisible(visible);
@@ -579,20 +590,23 @@ void RageForgeEditor::paint(juce::Graphics& g){
   g.drawText("TWO BARS / HOLD ONE MIDI NOTE / BPM SYNC / NO PITCH JUMPS",51,704,974,15,juce::Justification::centred);
   const bool rhythmIsOn=processor.state.getRawParameterValue("rhythmEnabled")->load()>.5f;
   const int currentStep=processor.getRhythmPlayhead();
-  for(int i=0;i<32;++i){
-   const float x=47.f+(float)i*30.85f;
+  const int rhythmResolution=juce::jlimit(0,3,(int)processor.state.getRawParameterValue("rhythmGrid")->load());
+  const int count=rage::RhythmPattern::stepCount(rhythmResolution);
+  const float stepW=987.f/(float)count;
+  for(int i=0;i<count;++i){
+   const float x=47.f+(float)i*stepW;
    const int value=processor.getRhythmStep(i);
    const bool current=rhythmIsOn && i==currentStep;
-   const auto r=juce::Rectangle<float>(x,724.f,27.5f,22.f);
+   const auto r=juce::Rectangle<float>(x,724.f,juce::jmax(3.f,stepW-2.f),22.f);
    g.setColour(juce::Colour(current?0xff365f30:0xff071308));
    g.fillRoundedRectangle(r,3.f);
-   g.setColour(lime.withAlpha(i%16==0?.70f:.22f));
+   g.setColour(lime.withAlpha(i==0||i==count/2?.70f:.22f));
    g.drawRoundedRectangle(r,3.f,1.f);
    if(value){
      g.setColour(juce::Colour(0xff76ff29).withAlpha(.28f+.18f*value));
      g.fillRoundedRectangle(r.reduced(3.f),2.f);
      g.setColour(juce::Colour(0xffc6ff8e));
-     g.fillRect(r.getX()+11.f,r.getBottom()-5.f-(float)value*2.3f,5.f,(float)value*2.3f);
+     g.fillRect(r.getCentreX()-1.5f,r.getBottom()-5.f-(float)value*2.3f,3.f,(float)value*2.3f);
    }
    if(current){
      g.setColour(juce::Colour(0xfff0ffbe));
@@ -644,6 +658,8 @@ void RageForgeEditor::resized(){
  generateBassButton.setBounds(scaled(761,395,264,29));
  generateRhythmButton.setBounds(scaled(481,395,255,29));
  rhythmEnabled.setBounds(scaled(488,362,230,25));
+ rhythmGrid.setBounds(scaled(50,395,195,28));
+ rhythmDensity.setBounds(scaled(264,395,195,28));
  subtitle.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,12.f*scale))));
  subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
