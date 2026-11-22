@@ -74,6 +74,41 @@ struct RhythmPattern {
   return p;
  }
 };
+// Internal one-note note sequencer. Starts only after MIDI note-on and keeps the
+// selected note fixed for every hit; tempo changes do not create a second voice.
+struct RhythmPlayer {
+ struct Event {bool on=false,off=false;int step=0;uint8_t tone=0;float velocity=0.f;};
+ bool held=false,sounding=false,pending=true;
+ int note=36,step=0;
+ float velocity=1.f;
+ double phase=0.0;
+ void start(int n,float v){note=n;velocity=v;phase=0;step=0;held=true;sounding=false;pending=true;}
+ void stop(int n){if(n==note){held=false;pending=false;}}
+ void reset(){held=false;sounding=false;pending=true;phase=0;step=0;}
+ Event tick(float sampleRate,float bpm,const RhythmPattern& pattern){
+  Event e;e.step=step;
+  if(!held){if(sounding){e.off=true;sounding=false;}return e;}
+  const uint8_t tone=pattern.hits[(size_t)step];
+  if(pending){
+   pending=false;
+   if(sounding){e.off=true;sounding=false;}
+   if(tone!=0){e.on=true;e.tone=tone;e.velocity=velocity*(.62f+.095f*tone);sounding=true;}
+  }
+  // Clearly separated chops; a small release may follow the gate.
+  const double gate=tone==4?.81:tone==3?.72:.65;
+  const double delta=(double)std::max(30.f,std::min(300.f,bpm))*4.0/
+                     (60.0*std::max(8000.f,sampleRate));
+  const double next=phase+delta;
+  if(sounding && phase<gate && next>=gate){e.off=true;sounding=false;}
+  if(next>=1.0){
+   phase=next-1.0;
+   step=(step+1)%RhythmPattern::steps;
+   pending=true;
+   if(sounding){e.off=true;sounding=false;}
+  }else phase=next;
+  return e;
+ }
+};
 struct Params {
  float shape=.55f, fm=.30f, detune=.20f, sub=.50f;
  float cutoff=2400, resonance=.18f, vowel=.45f, movement=.55f, rate=2, drive=.50f;
