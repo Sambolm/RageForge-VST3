@@ -260,7 +260,9 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
   {"drive","DRIVE"},{"attack","ATTACK"},{"decay","DECAY"},
   {"sustain","SUSTAIN"},{"release","RELEASE"},{"stereo","STEREO"},{"mix","EFFECT MIX"},
   {"glide","GLIDE"},{"level","OUTPUT"},{"headroom","HEADROOM dB"},
-  {"growl","GROWL"},{"screech","SCREECH"},{"servo","SERVO"},{"punch","PUNCH"}
+  {"growl","GROWL"},{"screech","SCREECH"},{"servo","SERVO"},{"punch","PUNCH"},
+  {"fmRatio","FM HARMONICS"},{"pitchDive","LASER DIVE"},
+  {"vowelSweep","VOWEL SWEEP"},{"midCrunch","MID CRUNCH"}
  };
  for(auto [id,label]:controls){
   auto k=std::make_unique<Knob>();
@@ -547,11 +549,11 @@ void RageForgeEditor::paint(juce::Graphics& g){
    const float x=42.f+i*252.f;
    g.setColour(juce::Colour(0xff112113));g.fillRoundedRectangle(x,432.f,238.f,297.f,9.f);
    g.setColour(lime.withAlpha(.20f));g.drawRoundedRectangle(x,432.f,238.f,297.f,9.f,1.f);
-   g.setColour(glow.withAlpha(.8f));g.drawText(explain[i],(int)x+6,654,225,23,juce::Justification::centred);
+   g.setColour(glow.withAlpha(.8f));g.drawText(explain[i],(int)x+6,692,225,18,juce::Justification::centred);
   }
   g.setColour(juce::Colour(0xff9ccc8f));g.setFont(juce::Font(juce::FontOptions(12.f)));
-  g.drawText("CHOOSE A STYLE + GENERATE. EDIT THE RESULT OR AUTOMATE ANY KNOB.",
-             50,702,965,18,juce::Justification::centred);
+  g.drawText("ORIGINAL WAVEFORMS  /  SYNTH CONTROLS  /  FULL FL STUDIO AUTOMATION",
+             50,721,965,16,juce::Justification::centred);
  }else{
   const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
                       "MOVEMENT  /  FILTER & ENVELOPES",
@@ -599,11 +601,14 @@ void RageForgeEditor::resized(){
  subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
    if(i>=18){
-     const int col=static_cast<int>(i-18);
+     const int col=static_cast<int>((i-18)%4);
+     const int row=static_cast<int>((i-18)/4);
      const int x=51+col*252;
-     knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(11.f,17.f*scale),juce::Font::bold)));
-     knobs[i]->label.setBounds(scaled(x,480,214,28));
-     knobs[i]->slider.setBounds(scaled(x+27,512,159,137));
+     const int labelY=row==0?449:572;
+     const int sliderY=row==0?471:589;
+     knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(9.f,13.f*scale),juce::Font::bold)));
+     knobs[i]->label.setBounds(scaled(x,labelY,214,22));
+     knobs[i]->slider.setBounds(scaled(x+39,sliderY,134,92));
    }else{
      int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
      int x=25+col*172,y=376+row*134;
