@@ -43,6 +43,8 @@ struct Params {
  float attack=.005f, decay=.17f, sustain=.65f, release=.18f;
  float stereo=.35f, level=.50f, mix=.95f, glide=.0f, headroomDb=3.f;
  float waveBlend=0.f,waveWarp=0.f;
+ // Independent drop-design macros; zero values preserve legacy patches.
+ float growl=0.f,screech=0.f,servo=0.f,punch=0.f;
  bool mono=true;
 };
 struct StateVariableFilter {
@@ -63,7 +65,8 @@ struct Voice {
  int note=-1; bool holding=false; int stage=0; float env=0,velocity=1;
  float phase1=0,phase2=0,phaseFM=0,phaseSub=0, freq=55, target=55;
  int scopeCycle=0; // Tracks oscillator periods for the eight-cycle waveform preview.
- float lfo=0, drift=0, pan=0, retriggerPitchFade=0; uint32_t rng=1234567;
+ float lfo=0, drift=0, pan=0, retriggerPitchFade=0;
+ float noteAge=0.f;uint32_t rng=1234567;
  StateVariableFilter main,form1,form2;
  void reset(){*this=Voice{};}
  float randf(){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return (rng/4294967295.f)*2.f-1.f;}
@@ -78,7 +81,7 @@ struct Voice {
     // Resetting an active mono voice produced an audible one-sample step.
     stage=1;retriggerPitchFade=1.f;
   }
-  target=hz;note=n;holding=true;velocity=clamp(vel,.02f,1.f);pan=offset;
+  noteAge=0.f;target=hz;note=n;holding=true;velocity=clamp(vel,.02f,1.f);pan=offset;
  }
  void stop(){holding=false;if(stage!=0)stage=4;}
  float envelope(const Params&p,float sr){
@@ -107,7 +110,10 @@ struct Engine {
    return wave[(size_t)(i%waveSize)]*(1.f-f)+wave[(size_t)((i+1)%waveSize)]*f;
  }
  Params p{};float sr=48000,beatBpm=140;uint64_t samples=0;int nextVoice=0;
- void prepare(float rate){sr=std::max(8000.f,rate); samples=0;for(auto &v:voices)v.reset();}
+ // Per-sample smoothing keeps FL Studio automation from creating parameter jumps.
+ float growlSmooth=0.f,screechSmooth=0.f,servoSmooth=0.f,punchSmooth=0.f;
+ void prepare(float rate){sr=std::max(8000.f,rate); samples=0;for(auto &v:voices)v.reset();
+  growlSmooth=screechSmooth=servoSmooth=punchSmooth=0.f;}
  void setTempo(float bpm){beatBpm=clamp(bpm,30.f,300.f);}
  void noteOn(int n,float vel){
   n=std::max(0,std::min(n,127));const float hz=440.f*std::pow(2.f,(n-69)/12.f);
@@ -129,11 +135,17 @@ struct Engine {
  // One output sample; internally 4x oversampled nonlinear synthesis and filters.
  std::array<float,2> tick(){
   float l=0,r=0;const float osr=sr*4.f;
+  const float macroSlew=1.f-std::exp(-1.f/(.012f*sr));
+  growlSmooth+=(clamp(p.growl,0.f,1.f)-growlSmooth)*macroSlew;
+  screechSmooth+=(clamp(p.screech,0.f,1.f)-screechSmooth)*macroSlew;
+  servoSmooth+=(clamp(p.servo,0.f,1.f)-servoSmooth)*macroSlew;
+  punchSmooth+=(clamp(p.punch,0.f,1.f)-punchSmooth)*macroSlew;
   // Smooth live edits to avoid audio discontinuities as the wave is drawn.
   const float waveSlew=1.f-std::exp(-1.f/(.012f*sr));
   for(int i=0;i<waveSize;++i)wave[(size_t)i]+=(waveTarget[(size_t)i]-wave[(size_t)i])*waveSlew;
   for(auto &v:voices){if(v.stage==0)continue;
     const float envelope=v.envelope(p,sr);if(v.stage==0)continue;
+    v.noteAge+=1.f/sr;
     float sum=0;
     for(int k=0;k<4;++k){
       const float glideTime=v.retriggerPitchFade>0.f?std::max(.003f,p.glide):p.glide;
@@ -144,10 +156,18 @@ struct Engine {
       v.lfo=fract(v.lfo+beatRate/osr);
       const float mod=lfoValue(v.lfo,p.lfoShape);
       const float waveMod=p.movement*(mod-.5f);
-      const float freq=std::min(v.freq,osr*.20f);
+      // Servo: rapidly decaying machine pitch sweep plus tempo-locked stepped motion.
+      const float servoStep=std::floor(mod*5.f)/4.f-.5f;
+      const float servoEnvelope=std::exp(-v.noteAge*16.f);
+      const float servoSemitones=servoSmooth*(14.f*servoEnvelope
+           +5.f*servoStep*(.45f+.55f*std::sin(2.f*pi*v.noteAge*23.f)));
+      const float freq=std::min(v.freq*std::pow(2.f,servoSemitones/12.f),osr*.20f);
       const float d1=freq/osr, d2=std::min(freq*(1.f+p.detune*.018f),osr*.25f)/osr;
       v.phaseFM=fract(v.phaseFM+d1*(1.5f+6.f*p.fm));
-      const float fm=std::sin(2*pi*v.phaseFM)*p.fm*2.2f;
+      // Screech adds high-ratio phase modulation and cross-harmonics.
+      const float tearing=std::sin(2.f*pi*v.phaseFM*(3.f+2.f*screechSmooth));
+      const float fm=std::sin(2*pi*v.phaseFM)*p.fm*2.2f
+                     +screechSmooth*(2.5f*tearing+.8f*std::sin(2.f*pi*v.phase2*7.f));
       const float nextPhase1=v.phase1+d1;
       if(nextPhase1>=1.f)v.scopeCycle=(v.scopeCycle+1)%8;
       v.phase1=fract(nextPhase1);
@@ -157,24 +177,36 @@ struct Engine {
       const float a=(1.f-p.waveBlend)*osc(mainPhase,d1,sh)+p.waveBlend*customWave(mainPhase,p.waveWarp);
       const float b=osc(fract(v.phase2-fm*.065f),d2,clamp(sh+.24f,0,1));
       float mid=.60f*a+.40f*b;
-      const float cutoff=clamp(p.cutoff*std::pow(2.f,waveMod*4.f),60.f,osr*.30f);
+      const float growlMotion=growlSmooth*(.7f*std::sin(2.f*pi*v.lfo)
+                                      +.35f*std::sin(4.f*pi*v.lfo));
+      const float cutoff=clamp(p.cutoff*std::pow(2.f,waveMod*4.f+growlMotion*2.1f),
+                               60.f,osr*.30f);
       float lp,bp;v.main.tick(mid,cutoff,p.resonance,osr,lp,bp);
       // Parallel animated formant bandpasses, with significant modulation depth.
       float f1,b1,f2,b2;
-      const float vowel=clamp(p.vowel + p.movement*(mod-.5f)*.9f,0,1);
+      const float vowel=clamp(p.vowel + p.movement*(mod-.5f)*.9f+growlMotion*.9f,0,1);
       v.form1.tick(mid,350.f+vowel*1350.f,.80f,osr,f1,b1);
       v.form2.tick(mid,850.f+(1-vowel)*2350.f,.83f,osr,f2,b2);
       const float formant=(b1*.9f+b2*.7f);
-      mid=(lp*(1.f-.65f*p.vowel)+formant*(.3f+1.55f*p.vowel));
+      const float growlWet=sat((b1*1.15f-b2*.75f)*(1.f+growlSmooth*9.f));
+      const float vocalMix=clamp(p.vowel+.45f*growlSmooth,0.f,1.f);
+      mid=lp*(1.f-.65f*vocalMix)+formant*(.3f+1.55f*vocalMix)
+          +growlWet*growlSmooth*.80f;
       // Soft, oversampled drive; keep separate sub out of this stage.
       const float drive=1.f+p.drive*19.f;
       const float wet=sat(mid*drive)/(std::max(.1f,sat(drive)));
       mid=(1.f-p.mix)*mid+p.mix*wet;
+      // High-frequency tearing, kept out of the separately synthesized sub-bass.
+      const float scream=sat(mid*(2.f+14.f*screechSmooth));
+      mid=mid*(1.f-.50f*screechSmooth)+scream*(.50f*screechSmooth);
       v.phaseSub=fract(v.phaseSub+d1*.5f);
       const float sub=std::sin(2*pi*v.phaseSub)*p.sub*.65f;
       sum+=(mid*.72f+sub)*.25f;
     }
-    const float amplitude=envelope*v.velocity*v.velocity*p.level*.55f;
+    // Punch boosts initial impact without injecting a discontinuous DC spike.
+    const float punchTransient=punchSmooth*std::exp(-v.noteAge*42.f)
+                              *std::sin(pi*clamp(v.noteAge/.012f,0.f,1.f));
+    const float amplitude=envelope*v.velocity*v.velocity*p.level*.55f*(1.f+1.6f*punchTransient);
     const float pan=clamp(v.pan*p.stereo,-.8f,.8f);
     l+=sum*amplitude*(1.f-pan*.5f);
     r+=sum*amplitude*(1.f+pan*.5f);
