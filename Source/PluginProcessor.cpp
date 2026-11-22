@@ -38,6 +38,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"headroom","Headroom (dB)",0,18,3);
  add(l,"waveBlend","Drawn Wave Blend",0,1,0);
  add(l,"waveWarp","Drawn Wave Warp",0,1,0);
+ add(l,"growl","Drop Growl",0,1,0);
+ add(l,"screech","Drop Screech",0,1,0);
+ add(l,"servo","Drop Servo",0,1,0);
+ add(l,"punch","Drop Punch",0,1,0);
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
  return l;
 }
@@ -64,6 +68,7 @@ void RageForgeProcessor::syncParameters(){
  p.stereo=val("stereo");p.mix=val("mix");p.glide=val("glide");p.level=val("level");
  p.headroomDb=val("headroom");p.mono=val("mono")>.5f;
  p.waveBlend=val("waveBlend");p.waveWarp=val("waveWarp");
+ p.growl=val("growl");p.screech=val("screech");p.servo=val("servo");p.punch=val("punch");
 }
 void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
  juce::ScopedNoDenormals denormals;
@@ -144,10 +149,40 @@ void RageForgeProcessor::selectPreset(int index){
   {"decay",v.d},{"sustain",v.s},{"release",v.r},{"stereo",v.spread},{"mix",v.mix},
   {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f},
   {"waveBlend",0.f},{"waveWarp",0.f},
+  {"growl",0.f},{"screech",0.f},{"servo",0.f},{"punch",0.f},
   {"lfoDivision", static_cast<float>(std::array<int,8>{3,3,2,5,1,4,1,5}[static_cast<size_t>(juce::jlimit(0,7,index))])},
   {"lfoShape", static_cast<float>(std::array<int,8>{4,0,2,1,4,1,3,0}[static_cast<size_t>(juce::jlimit(0,7,index))])}
  };
  for(auto [id,value]:values){auto* par=state.getParameter(id);par->setValueNotifyingHost(par->convertTo0to1(value));}
+}
+void RageForgeProcessor::selectDropPreset(int index){
+ // The macro patches are quick starting points; all parameters remain automatable.
+ struct DropPatch{
+  float growl,screech,servo,punch,shape,fm,sub,cutoff,resonance,vowel,movement,drive,
+        attack,decay,sustain,release,level,headroom;
+  int division,shapeLfo;
+ };
+ static const std::array<DropPatch,5> patches{{
+  {.92f,.18f,.20f,.55f,.62f,.68f,.75f,1900.f,.72f,.84f,.95f,.78f,.004f,.18f,.66f,.13f,.46f,6.f,2,2},  // Beast Growl
+  {.20f,.97f,.37f,.58f,.91f,.97f,.30f,6800.f,.28f,.20f,.74f,.91f,.003f,.11f,.44f,.15f,.34f,8.f,1,4}, // Razor Screech
+  {.38f,.48f,.98f,.73f,.69f,.77f,.60f,3300.f,.50f,.63f,.92f,.77f,.004f,.13f,.50f,.12f,.41f,7.f,2,3}, // Servo Machine
+  {.59f,.39f,.24f,1.00f,.77f,.72f,.86f,2500.f,.41f,.70f,.87f,.86f,.003f,.08f,.10f,.09f,.50f,7.f,1,4}, // Impact Chop
+  {.82f,.76f,.63f,.68f,.83f,.86f,.69f,3900.f,.58f,.74f,.99f,.88f,.004f,.20f,.70f,.20f,.38f,9.f,3,2}  // Mutant Hybrid
+ }};
+ const auto& p=patches[static_cast<size_t>(juce::jlimit(0,4,index))];
+ const std::pair<const char*,float> values[]{
+  {"growl",p.growl},{"screech",p.screech},{"servo",p.servo},{"punch",p.punch},
+  {"shape",p.shape},{"fm",p.fm},{"sub",p.sub},{"cutoff",p.cutoff},
+  {"resonance",p.resonance},{"vowel",p.vowel},{"movement",p.movement},
+  {"drive",p.drive},{"attack",p.attack},{"decay",p.decay},
+  {"sustain",p.sustain},{"release",p.release},{"level",p.level},
+  {"headroom",p.headroom},{"mono",1.f},{"mix",.97f},{"stereo",.12f},
+  {"waveBlend",0.f},{"waveWarp",0.f},{"glide",0.f},
+  {"lfoDivision",(float)p.division},{"lfoShape",(float)p.shapeLfo}
+ };
+ for(const auto& pair:values)
+  if(auto* param=state.getParameter(pair.first))
+   param->setValueNotifyingHost(param->convertTo0to1(pair.second));
 }
 juce::AudioProcessorEditor* RageForgeProcessor::createEditor(){return new RageForgeEditor(*this);}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new RageForgeProcessor();}
