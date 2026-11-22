@@ -342,6 +342,9 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  waveWarpSlider.onValueChange=updateWaveSliders;
  updateWaveSliders();
  addAndMakeVisible(mono);monoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"mono",mono);
+ resetEachNote.setTooltip("ON: fresh oscillator, FM, filter and LFO start on every separate MIDI note. OFF: legacy phase-continuous re-trigger. Held legato stays smooth.");
+ addAndMakeVisible(resetEachNote);
+ resetEachNoteAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"freshRetrigger",resetEachNote);
  neon.setColour(juce::ComboBox::textColourId,juce::Colour(0xffeaffd9));
  neon.setColour(juce::PopupMenu::backgroundColourId,juce::Colour(0xff0d180f));
  neon.setColour(juce::PopupMenu::textColourId,juce::Colour(0xffeaffd9));
@@ -625,4 +628,5 @@ void RageForgeEditor::resized(){
  lfoShape.setBounds(scaled(910,217,125,28));
  // Mono/legato lives in the oscillator card; never cover the LFO graph.
  mono.setBounds(scaled(833,118,201,21));
+ resetEachNote.setBounds(scaled(833,143,201,21));
 }
