@@ -115,6 +115,7 @@ struct Params {
  float attack=.005f, decay=.17f, sustain=.65f, release=.18f;
  float stereo=.35f, level=.50f, mix=.95f, glide=.0f, headroomDb=3.f;
  float waveBlend=0.f,waveWarp=0.f;
+ float bassBody=0.f; // Fundamental reinforcement, bypassed for legacy projects.
  // Independent drop-design macros; zero values preserve legacy patches.
  float growl=0.f,screech=0.f,servo=0.f,punch=0.f;
  // Signature Sound controls: default zero leaves existing sessions untouched.
@@ -138,7 +139,7 @@ struct StateVariableFilter {
 };
 struct Voice {
  int note=-1; bool holding=false; int stage=0; float env=0,velocity=1;
- float phase1=0,phase2=0,phaseFM=0,phaseSub=0, freq=55, target=55;
+ float phase1=0,phase2=0,phaseFM=0,phaseSub=0,phaseBass=0, freq=55, target=55;
  int scopeCycle=0; // Tracks oscillator periods for the eight-cycle waveform preview.
  float lfo=0, drift=0, pan=0, retriggerPitchFade=0;
  float noteAge=0.f,lowBand=0.f,highBand=0.f;uint32_t rng=1234567;
@@ -148,7 +149,7 @@ struct Voice {
  void start(int n,float vel,float offset,float hz, bool legato){
   const bool active=stage!=0;
   if(!legato && !active){
-    phase1=phase2=phaseFM=phaseSub=0;scopeCycle=0;
+    phase1=phase2=phaseFM=phaseSub=phaseBass=0;scopeCycle=0;
     main.reset();form1.reset();form2.reset();env=0;stage=1;freq=hz;
     retriggerPitchFade=0.f;
   }else if(!legato && active){
@@ -190,9 +191,10 @@ struct Engine {
  // Per-sample smoothing keeps FL Studio automation from creating parameter jumps.
  float growlSmooth=0.f,screechSmooth=0.f,servoSmooth=0.f,punchSmooth=0.f;
  float fmRatioSmooth=0.f,pitchDiveSmooth=0.f,vowelSweepSmooth=0.f,midCrunchSmooth=0.f;
+ float bassBodySmooth=0.f;
  void prepare(float rate){sr=std::max(8000.f,rate); samples=0;for(auto &v:voices)v.reset();
   growlSmooth=screechSmooth=servoSmooth=punchSmooth=0.f;
-  fmRatioSmooth=pitchDiveSmooth=vowelSweepSmooth=midCrunchSmooth=0.f;
+  fmRatioSmooth=pitchDiveSmooth=vowelSweepSmooth=midCrunchSmooth=bassBodySmooth=0.f;
   lastOutputL=lastOutputR=transitionL=transitionR=0.f;
   retriggerFadeRemaining=0;retriggerFadeTotal=std::max(1,(int)(sr*.0025f));}
  void setTempo(float bpm){beatBpm=clamp(bpm,30.f,300.f);}
@@ -237,6 +239,7 @@ struct Engine {
   pitchDiveSmooth+=(clamp(p.pitchDive,0.f,1.f)-pitchDiveSmooth)*macroSlew;
   vowelSweepSmooth+=(clamp(p.vowelSweep,0.f,1.f)-vowelSweepSmooth)*macroSlew;
   midCrunchSmooth+=(clamp(p.midCrunch,0.f,1.f)-midCrunchSmooth)*macroSlew;
+  bassBodySmooth+=(clamp(p.bassBody,0.f,1.f)-bassBodySmooth)*macroSlew;
   // Smooth live edits to avoid audio discontinuities as the wave is drawn.
   const float waveSlew=1.f-std::exp(-1.f/(.012f*sr));
   for(int i=0;i<waveSize;++i)wave[(size_t)i]+=(waveTarget[(size_t)i]-wave[(size_t)i])*waveSlew;
@@ -313,7 +316,16 @@ struct Engine {
       mid=mid*(1.f-midCrunchSmooth)+shaped*midCrunchSmooth;
       v.phaseSub=fract(v.phaseSub+d1*.5f);
       const float sub=std::sin(2*pi*v.phaseSub)*p.sub*.65f;
-      sum+=(mid*.72f+sub)*.25f;
+      // Dedicated fundamental + gentle second harmonic, outside all distortion.
+      // Unlike a pure octave-down sub, this remains audible on smaller speakers.
+      // Use unswept MIDI pitch so servo/laser attacks don't destabilize the bass.
+      const float bassHz=clamp(v.freq,27.f,osr*.20f);
+      v.phaseBass=fract(v.phaseBass+bassHz/osr);
+      const float fundamental=std::sin(2.f*pi*v.phaseBass);
+      const float harmonic=std::sin(4.f*pi*v.phaseBass);
+      const float bassBody=(.82f*fundamental+.18f*harmonic)
+                             *bassBodySmooth*.52f;
+      sum+=(mid*.72f+sub+bassBody)*.25f;
     }
     // Punch boosts initial impact without injecting a discontinuous DC spike.
     const float punchTransient=punchSmooth*std::exp(-v.noteAge*42.f)
