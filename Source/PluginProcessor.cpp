@@ -89,16 +89,67 @@ void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Midi
  if(auto* play=getPlayHead()){
   if(auto pos=play->getPosition())if(auto bpm=pos->getBpm())engine.setTempo(static_cast<float>(*bpm));
  }
- int i=0;auto it=midi.cbegin();const auto end=midi.cend();
- for(;i<audio.getNumSamples();++i){
-  while(it!=end && (*it).samplePosition<=i){
-    auto msg=(*it).getMessage();
-    if(msg.isNoteOn())engine.noteOn(msg.getNoteNumber(),msg.getFloatVelocity());
-    else if(msg.isNoteOff())engine.noteOff(msg.getNoteNumber());
-    else if(msg.isAllNotesOff() || msg.isAllSoundOff())engine.allNotesOff();
-    ++it;
+ const bool rhythmEnabled=state.getRawParameterValue("rhythmEnabled")->load()>.5f;
+ if(!rhythmEnabled&&wasRhythmEnabled){
+   if(rhythmPlayer.held||rhythmPlayer.sounding)engine.allNotesOff();
+   rhythmPlayer.reset();rhythmTone=0;
+ }
+ wasRhythmEnabled=rhythmEnabled;
+ rage::RhythmPattern currentRhythm;
+ if(rhythmEnabled)
+  for(int n=0;n<rage::RhythmPattern::steps;++n)
+   currentRhythm.hits[(size_t)n]=rhythmSteps[(size_t)n].load(std::memory_order_relaxed);
+ const rage::Params baseParams=engine.p;
+ const int total=audio.getNumSamples();
+ auto it=midi.cbegin();const auto end=midi.cend();
+ for(int i=0;i<total;++i){
+  while(it!=end&&(*it).samplePosition<=i){
+   const auto msg=(*it).getMessage();
+   if(rhythmEnabled){
+    if(msg.isNoteOn()){
+      // The host supplies the pitch. Rhythm generation never transposes it.
+      rhythmLastNote.store(msg.getNoteNumber(),std::memory_order_relaxed);
+      if(rhythmPlayer.held||rhythmPlayer.sounding)engine.allNotesOff();
+      rhythmPlayer.start(msg.getNoteNumber(),msg.getFloatVelocity());
+    }else if(msg.isNoteOff()){
+      if(msg.getNoteNumber()==rhythmPlayer.note){
+       rhythmPlayer.stop(msg.getNoteNumber());engine.noteOff(msg.getNoteNumber());
+      }
+    }else if(msg.isAllNotesOff()||msg.isAllSoundOff()){
+      rhythmPlayer.reset();engine.allNotesOff();
+    }
+   }else{
+    if(msg.isNoteOn()){
+      rhythmLastNote.store(msg.getNoteNumber(),std::memory_order_relaxed);
+      engine.noteOn(msg.getNoteNumber(),msg.getFloatVelocity());
+    }else if(msg.isNoteOff())engine.noteOff(msg.getNoteNumber());
+    else if(msg.isAllNotesOff()||msg.isAllSoundOff())engine.allNotesOff();
+   }
+   ++it;
   }
-  auto out=engine.tick();audio.setSample(0,i,out[0]);audio.setSample(1,i,out[1]);
+  engine.p=baseParams;
+  if(rhythmEnabled){
+   const auto ev=rhythmPlayer.tick(engine.sr,engine.beatBpm,currentRhythm);
+   rhythmStepDisplay.store(rhythmPlayer.step,std::memory_order_relaxed);
+   if(ev.off)engine.noteOff(rhythmPlayer.note);
+   if(ev.on){
+    rhythmTone=ev.tone;
+    engine.p.glide=0.f;
+    engine.p.freshRetrigger=true;
+    engine.noteOn(rhythmPlayer.note,ev.velocity);
+   }
+   // Sound palette changes by accent while MIDI pitch remains fixed.
+   const float character=((float)rhythmTone-2.5f)/2.5f;
+   engine.p.vowel=rage::clamp(baseParams.vowel+character*.23f,0.f,1.f);
+   engine.p.fm=rage::clamp(baseParams.fm+character*.14f,0.f,1.f);
+   engine.p.movement=rage::clamp(baseParams.movement*(.86f+.15f*rhythmTone),0.f,1.f);
+   engine.p.vowelSweep=rage::clamp(baseParams.vowelSweep+character*.15f,0.f,1.f);
+   engine.p.release=std::min(baseParams.release,.028f);
+   engine.p.freshRetrigger=true;
+   engine.p.glide=0.f;
+  }
+  const auto out=engine.tick();
+  audio.setSample(0,i,out[0]);audio.setSample(1,i,out[1]);
  }
  // One atomic snapshot per block: no locks and no GUI work on the audio thread.
  // Use the most audible voice in poly mode, and the mono voice in mono mode.
