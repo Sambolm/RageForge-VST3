@@ -225,6 +225,8 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  };
  for(auto [id,label]:controls){
   auto k=std::make_unique<Knob>();
+  k->parameterId=id;
+  k->slider.onContextClick=[this,parameterId=k->parameterId]{showAutomationMenu(parameterId);};
   k->slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
   k->slider.setTextBoxStyle(juce::Slider::TextBoxBelow,false,80,20);
   const juce::String idString(id);
@@ -268,6 +270,8 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  // The DSP already uses these settings; the visualization must follow them too.
  lfoDivision.onChange=[this]{repaint();};
  lfoShape.onChange=[this]{repaint();};
+ waveBlendSlider.onContextClick=[this]{showAutomationMenu("waveBlend");};
+ waveWarpSlider.onContextClick=[this]{showAutomationMenu("waveWarp");};
  for(auto* slider:{&waveBlendSlider,&waveWarpSlider}){
   slider->setSliderStyle(juce::Slider::LinearHorizontal);
   slider->setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
@@ -306,6 +310,45 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  setResizeLimits(740,548,1450,1074);
  setSize(890,659);
  startTimerHz(30); // UI-only refresh; no timer or drawing code runs on the audio thread.
+}
+int RageForgeEditor::getControlParameterIndex(juce::Component& component){
+ auto matches=[&](juce::Component& c, const juce::String& id)->int {
+  if(&component==&c){
+   if(auto* p=processor.state.getParameter(id))
+    return p->getParameterIndex();
+  }
+  return -1;
+ };
+ for(const auto& k:knobs)
+  if(const int index=matches(k->slider,k->parameterId); index>=0)return index;
+ if(const int index=matches(waveBlendSlider,"waveBlend");index>=0)return index;
+ if(const int index=matches(waveWarpSlider,"waveWarp");index>=0)return index;
+ return juce::AudioProcessorEditor::getControlParameterIndex(component);
+}
+void RageForgeEditor::showAutomationMenu(const juce::String& parameterId){
+ auto* parameter=processor.state.getParameter(parameterId);
+ if(parameter==nullptr)return;
+ if(auto* host=getHostContext()){
+  if(auto nativeMenu=host->getContextMenuForParameter(parameter)){
+   // FL Studio owns the menu entries and creates the Playlist automation clip.
+   nativeMenu->showNativeMenu(getMouseXYRelative());
+   return;
+  }
+ }
+ // Not every VST3 host supplies a parameter context menu.
+ // Never claim to create an FL Studio Playlist clip from inside the plugin.
+ juce::PopupMenu menu;
+ menu.addSectionHeader(parameter->getName(80));
+ menu.addItem(1,"How to create an automation clip in FL Studio");
+ menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
+    [safe=juce::Component::SafePointer<RageForgeEditor>(this)](int selected){
+      if(selected!=1||safe==nullptr)return;
+      juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+       "Automate RageForge",
+       "Move the RageForge knob slightly, then in FL Studio choose:\\n"
+       "Tools > Last tweaked > Create automation clip.\\n\\n"
+       "The automation clip will appear in the Playlist.");
+    });
 }
 RageForgeEditor::~RageForgeEditor(){stopTimer();setLookAndFeel(nullptr);}
 void RageForgeEditor::timerCallback(){
