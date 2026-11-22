@@ -62,6 +62,9 @@ private:
  juce::ComboBox preset,dropPreset;
  juce::TextButton dropPageButton{"DROP LAB"};
  juce::TextButton generateBassButton{"GENERATE VARIATION"};
+ juce::TextButton generateRhythmButton{"GENERATE RHYTHM"};
+ juce::ToggleButton rhythmEnabled{"RHYTHM ON"};
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> rhythmEnabledAttachment;
  int generatedVariations=0;
  bool dropLabPage=false;
  void updatePage();
