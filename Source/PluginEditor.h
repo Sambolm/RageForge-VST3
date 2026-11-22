@@ -64,6 +64,8 @@ private:
  juce::TextButton generateBassButton{"GENERATE VARIATION"};
  juce::TextButton generateRhythmButton{"GENERATE RHYTHM"};
  juce::ToggleButton rhythmEnabled{"RHYTHM ON"};
+ juce::ComboBox rhythmGrid,rhythmDensity;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> rhythmGridAttachment,rhythmDensityAttachment;
  std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> rhythmEnabledAttachment;
  int generatedVariations=0;
  bool dropLabPage=false;
