@@ -228,6 +228,25 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
  };
  addAndMakeVisible(dropPreset);
  dropPreset.setVisible(false);
+ generateBassButton.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff275e28));
+ generateBassButton.setColour(juce::TextButton::buttonOnColourId,juce::Colour(0xff4c8133));
+ generateBassButton.setColour(juce::TextButton::textColourOffId,juce::Colour(0xffd7ffb4));
+ generateBassButton.setTooltip("Generate a new variation in the selected bass family. All parameters remain editable.");
+ generateBassButton.onClick=[this]{
+   int family=dropPreset.getSelectedId()-1;
+   if(family<0){
+     family=0;
+     dropPreset.setSelectedId(1,juce::dontSendNotification);
+   }
+   processor.generateDropVariation(family);
+   ++generatedVariations;
+   subtitle.setText("DROP LAB  /  "+dropPreset.getText()
+     +"  /  VARIATION "+juce::String(generatedVariations),juce::dontSendNotification);
+   waveDrawing.repaint();
+   repaint();
+ };
+ addAndMakeVisible(generateBassButton);
+ generateBassButton.setVisible(false);
  dropPageButton.onClick=[this]{
   dropLabPage=!dropLabPage;
   updatePage();
@@ -335,6 +354,7 @@ RageForgeEditor::RageForgeEditor(RageForgeProcessor& p):AudioProcessorEditor(&p)
 void RageForgeEditor::updatePage(){
  dropPageButton.setButtonText(dropLabPage?"SYNTH CONTROLS":"DROP LAB");
  dropPreset.setVisible(dropLabPage);
+ generateBassButton.setVisible(dropLabPage);
  for(size_t i=0;i<knobs.size();++i){
   const bool visible=dropLabPage?(i>=18):(i<18);
   knobs[i]->slider.setVisible(visible);
@@ -525,13 +545,13 @@ void RageForgeEditor::paint(juce::Graphics& g){
   const char* explain[]{"VOWEL SWEEPS + FORMANTS","METALLIC FM TEAR","ROBOTIC PITCH MOTION","STAB TRANSIENT ATTACK"};
   for(int i=0;i<4;++i){
    const float x=42.f+i*252.f;
-   g.setColour(juce::Colour(0xff112113));g.fillRoundedRectangle(x,413.f,238.f,315.f,9.f);
-   g.setColour(lime.withAlpha(.20f));g.drawRoundedRectangle(x,413.f,238.f,315.f,9.f,1.f);
-   g.setColour(glow.withAlpha(.8f));g.drawText(explain[i],(int)x+6,643,225,23,juce::Justification::centred);
+   g.setColour(juce::Colour(0xff112113));g.fillRoundedRectangle(x,432.f,238.f,297.f,9.f);
+   g.setColour(lime.withAlpha(.20f));g.drawRoundedRectangle(x,432.f,238.f,297.f,9.f,1.f);
+   g.setColour(glow.withAlpha(.8f));g.drawText(explain[i],(int)x+6,654,225,23,juce::Justification::centred);
   }
   g.setColour(juce::Colour(0xff9ccc8f));g.setFont(juce::Font(juce::FontOptions(12.f)));
-  g.drawText("All four macros are automatable. Combine them, then switch to SYNTH CONTROLS for fine tuning.",
-             50,698,965,20,juce::Justification::centred);
+  g.drawText("CHOOSE A STYLE + GENERATE. EDIT THE RESULT OR AUTOMATE ANY KNOB.",
+             50,702,965,18,juce::Justification::centred);
  }else{
   const char* titles[]={"SOUND DESIGN  /  OSCILLATORS & DISTORTION",
                       "MOVEMENT  /  FILTER & ENVELOPES",
@@ -574,6 +594,7 @@ void RageForgeEditor::resized(){
  preset.setBounds(scaled(787,25,257,38));
  dropPageButton.setBounds(scaled(518,118,177,23));
  dropPreset.setBounds(scaled(760,359,265,31));
+ generateBassButton.setBounds(scaled(761,395,264,29));
  subtitle.setFont(juce::Font(juce::FontOptions(juce::jmax(8.f,12.f*scale))));
  subtitle.setBounds(scaled(765,70,292,23));
  for(size_t i=0;i<knobs.size();++i){
@@ -581,8 +602,8 @@ void RageForgeEditor::resized(){
      const int col=static_cast<int>(i-18);
      const int x=51+col*252;
      knobs[i]->label.setFont(juce::Font(juce::FontOptions(juce::jmax(11.f,17.f*scale),juce::Font::bold)));
-     knobs[i]->label.setBounds(scaled(x,453,214,28));
-     knobs[i]->slider.setBounds(scaled(x+27,491,159,137));
+     knobs[i]->label.setBounds(scaled(x,480,214,28));
+     knobs[i]->slider.setBounds(scaled(x+27,512,159,137));
    }else{
      int row=static_cast<int>(i/6),col=static_cast<int>(i%6);
      int x=25+col*172,y=376+row*134;
