@@ -29,6 +29,7 @@ public:
  static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
  void selectPreset(int);
  void selectDropPreset(int);
+ void generateDropVariation(int family);
  void setWavePoint(int index,float value);
  float getWavePoint(int index) const;
  bool isWavePlaying() const noexcept {return wavePlaying.load(std::memory_order_relaxed);}
@@ -38,6 +39,7 @@ public:
 private:
  rage::Engine engine;
  std::array<std::atomic<float>,rage::Engine::waveSize> userWave{};
+ uint32_t variationCounter=0;
  std::atomic<bool> wavePlaying{false};
  std::atomic<float> wavePhase{0.f},waveScopeProgress{0.f};
  void syncParameters();
