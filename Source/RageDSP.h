@@ -45,6 +45,8 @@ struct Params {
  float waveBlend=0.f,waveWarp=0.f;
  // Independent drop-design macros; zero values preserve legacy patches.
  float growl=0.f,screech=0.f,servo=0.f,punch=0.f;
+ // Signature Sound controls: default zero leaves existing sessions untouched.
+ float fmRatio=0.f,pitchDive=0.f,vowelSweep=0.f,midCrunch=0.f;
  bool mono=true;
 };
 struct StateVariableFilter {
@@ -66,7 +68,7 @@ struct Voice {
  float phase1=0,phase2=0,phaseFM=0,phaseSub=0, freq=55, target=55;
  int scopeCycle=0; // Tracks oscillator periods for the eight-cycle waveform preview.
  float lfo=0, drift=0, pan=0, retriggerPitchFade=0;
- float noteAge=0.f;uint32_t rng=1234567;
+ float noteAge=0.f,lowBand=0.f,highBand=0.f;uint32_t rng=1234567;
  StateVariableFilter main,form1,form2;
  void reset(){*this=Voice{};}
  float randf(){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return (rng/4294967295.f)*2.f-1.f;}
@@ -112,8 +114,10 @@ struct Engine {
  Params p{};float sr=48000,beatBpm=140;uint64_t samples=0;int nextVoice=0;
  // Per-sample smoothing keeps FL Studio automation from creating parameter jumps.
  float growlSmooth=0.f,screechSmooth=0.f,servoSmooth=0.f,punchSmooth=0.f;
+ float fmRatioSmooth=0.f,pitchDiveSmooth=0.f,vowelSweepSmooth=0.f,midCrunchSmooth=0.f;
  void prepare(float rate){sr=std::max(8000.f,rate); samples=0;for(auto &v:voices)v.reset();
-  growlSmooth=screechSmooth=servoSmooth=punchSmooth=0.f;}
+  growlSmooth=screechSmooth=servoSmooth=punchSmooth=0.f;
+  fmRatioSmooth=pitchDiveSmooth=vowelSweepSmooth=midCrunchSmooth=0.f;}
  void setTempo(float bpm){beatBpm=clamp(bpm,30.f,300.f);}
  void noteOn(int n,float vel){
   n=std::max(0,std::min(n,127));const float hz=440.f*std::pow(2.f,(n-69)/12.f);
@@ -140,6 +144,10 @@ struct Engine {
   screechSmooth+=(clamp(p.screech,0.f,1.f)-screechSmooth)*macroSlew;
   servoSmooth+=(clamp(p.servo,0.f,1.f)-servoSmooth)*macroSlew;
   punchSmooth+=(clamp(p.punch,0.f,1.f)-punchSmooth)*macroSlew;
+  fmRatioSmooth+=(clamp(p.fmRatio,0.f,1.f)-fmRatioSmooth)*macroSlew;
+  pitchDiveSmooth+=(clamp(p.pitchDive,0.f,1.f)-pitchDiveSmooth)*macroSlew;
+  vowelSweepSmooth+=(clamp(p.vowelSweep,0.f,1.f)-vowelSweepSmooth)*macroSlew;
+  midCrunchSmooth+=(clamp(p.midCrunch,0.f,1.f)-midCrunchSmooth)*macroSlew;
   // Smooth live edits to avoid audio discontinuities as the wave is drawn.
   const float waveSlew=1.f-std::exp(-1.f/(.012f*sr));
   for(int i=0;i<waveSize;++i)wave[(size_t)i]+=(waveTarget[(size_t)i]-wave[(size_t)i])*waveSlew;
@@ -161,9 +169,12 @@ struct Engine {
       const float servoEnvelope=std::exp(-v.noteAge*16.f);
       const float servoSemitones=servoSmooth*(14.f*servoEnvelope
            +5.f*servoStep*(.45f+.55f*std::sin(2.f*pi*v.noteAge*23.f)));
-      const float freq=std::min(v.freq*std::pow(2.f,servoSemitones/12.f),osr*.20f);
+      // Downward pitch envelope: from a high laser transient to the held note.
+      const float diveSemitones=pitchDiveSmooth*22.f*std::exp(-v.noteAge*19.f);
+      const float freq=std::min(v.freq*std::pow(2.f,(servoSemitones+diveSemitones)/12.f),osr*.20f);
       const float d1=freq/osr, d2=std::min(freq*(1.f+p.detune*.018f),osr*.25f)/osr;
-      v.phaseFM=fract(v.phaseFM+d1*(1.5f+6.f*p.fm));
+      const float ratio=(1.5f+6.f*p.fm)*(1.f+2.5f*fmRatioSmooth);
+      v.phaseFM=fract(v.phaseFM+std::min(d1*ratio,.42f));
       // Screech adds high-ratio phase modulation and cross-harmonics.
       const float tearing=std::sin(2.f*pi*v.phaseFM*(3.f+2.f*screechSmooth));
       const float fm=std::sin(2*pi*v.phaseFM)*p.fm*2.2f
@@ -184,7 +195,8 @@ struct Engine {
       float lp,bp;v.main.tick(mid,cutoff,p.resonance,osr,lp,bp);
       // Parallel animated formant bandpasses, with significant modulation depth.
       float f1,b1,f2,b2;
-      const float vowel=clamp(p.vowel + p.movement*(mod-.5f)*.9f+growlMotion*.9f,0,1);
+      const float vowel=clamp(p.vowel + p.movement*(mod-.5f)*.9f+growlMotion*.9f
+         +vowelSweepSmooth*(.7f*std::sin(2.f*pi*v.lfo*2.f)-.25f),0.f,1.f);
       v.form1.tick(mid,350.f+vowel*1350.f,.80f,osr,f1,b1);
       v.form2.tick(mid,850.f+(1-vowel)*2350.f,.83f,osr,f2,b2);
       const float formant=(b1*.9f+b2*.7f);
@@ -199,6 +211,17 @@ struct Engine {
       // High-frequency tearing, kept out of the separately synthesized sub-bass.
       const float scream=sat(mid*(2.f+14.f*screechSmooth));
       mid=mid*(1.f-.50f*screechSmooth)+scream*(.50f*screechSmooth);
+      // Independent mid-band saturator; leave the sub oscillator clean.
+      // Crossover states update even when Mid Crunch is bypassed.
+      const float lowCoeff=1.f-std::exp(-2.f*pi*150.f/osr);
+      const float highCoeff=1.f-std::exp(-2.f*pi*4500.f/osr);
+      v.lowBand+=(mid-v.lowBand)*lowCoeff;
+      v.highBand+=(mid-v.highBand)*highCoeff;
+      const float low=v.lowBand, middle=v.highBand-v.lowBand, high=mid-v.highBand;
+      const float crushed=sat(middle*(1.f+midCrunchSmooth*24.f));
+      const float shaped=low+middle*(1.f-midCrunchSmooth)
+         +crushed*midCrunchSmooth*.68f+high;
+      mid=mid*(1.f-midCrunchSmooth)+shaped*midCrunchSmooth;
       v.phaseSub=fract(v.phaseSub+d1*.5f);
       const float sub=std::sin(2*pi*v.phaseSub)*p.sub*.65f;
       sum+=(mid*.72f+sub)*.25f;
