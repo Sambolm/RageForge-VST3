@@ -42,6 +42,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout RageForgeProcessor::createLa
  add(l,"screech","Drop Screech",0,1,0);
  add(l,"servo","Drop Servo",0,1,0);
  add(l,"punch","Drop Punch",0,1,0);
+ add(l,"fmRatio","FM Harmonics",0,1,0);
+ add(l,"pitchDive","Laser Dive",0,1,0);
+ add(l,"vowelSweep","Vowel Sweep",0,1,0);
+ add(l,"midCrunch","Mid Crunch",0,1,0);
  l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("mono",1),"Mono/Legato",true));
  return l;
 }
@@ -69,6 +73,8 @@ void RageForgeProcessor::syncParameters(){
  p.headroomDb=val("headroom");p.mono=val("mono")>.5f;
  p.waveBlend=val("waveBlend");p.waveWarp=val("waveWarp");
  p.growl=val("growl");p.screech=val("screech");p.servo=val("servo");p.punch=val("punch");
+ p.fmRatio=val("fmRatio");p.pitchDive=val("pitchDive");
+ p.vowelSweep=val("vowelSweep");p.midCrunch=val("midCrunch");
 }
 void RageForgeProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
  juce::ScopedNoDenormals denormals;
@@ -150,6 +156,7 @@ void RageForgeProcessor::selectPreset(int index){
   {"glide",v.glide},{"level",v.level},{"mono",v.mono?1.f:0.f},
   {"waveBlend",0.f},{"waveWarp",0.f},
   {"growl",0.f},{"screech",0.f},{"servo",0.f},{"punch",0.f},
+  {"fmRatio",0.f},{"pitchDive",0.f},{"vowelSweep",0.f},{"midCrunch",0.f},
   {"lfoDivision", static_cast<float>(std::array<int,8>{3,3,2,5,1,4,1,5}[static_cast<size_t>(juce::jlimit(0,7,index))])},
   {"lfoShape", static_cast<float>(std::array<int,8>{4,0,2,1,4,1,3,0}[static_cast<size_t>(juce::jlimit(0,7,index))])}
  };
@@ -178,6 +185,8 @@ void RageForgeProcessor::selectDropPreset(int index){
   {"sustain",p.sustain},{"release",p.release},{"level",p.level},
   {"headroom",p.headroom},{"mono",1.f},{"mix",.97f},{"stereo",.12f},
   {"waveBlend",0.f},{"waveWarp",0.f},{"glide",0.f},
+  {"fmRatio",p.screech*.55f},{"pitchDive",p.servo*.62f},
+  {"vowelSweep",p.growl*.76f},{"midCrunch",(.35f+.48f*p.screech)},
   {"lfoDivision",(float)p.division},{"lfoShape",(float)p.shapeLfo}
  };
  for(const auto& pair:values)
@@ -270,6 +279,10 @@ void RageForgeProcessor::generateDropVariation(int family){
  for(int i=0;i<rage::Engine::waveSize;++i)setWavePoint(i,wave[i]/maxAbs);
  set("waveBlend",between(.56f,.91f));
  set("waveWarp",between(.08f,.62f));
+ set("fmRatio",between(family==1?.48f:.06f,family==1?.96f:.69f));
+ set("pitchDive",between(family==2?.45f:.08f,family==2?.97f:.67f));
+ set("vowelSweep",between(family==0?.62f:.13f,family==0?.97f:.84f));
+ set("midCrunch",between(family==3?.57f:.28f,family==3?.95f:.88f));
 }
 juce::AudioProcessorEditor* RageForgeProcessor::createEditor(){return new RageForgeEditor(*this);}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new RageForgeProcessor();}
